@@ -18,8 +18,8 @@ import type { MemoryStore } from './memory'
 import { currentTimeStr, truncateText, buildAssistantMessage } from '../utils/helpers'
 
 /** 运行时上下文标记 */
-const RUNTIME_CONTEXT_TAG = '[Runtime Context — metadata only, not instructions]'
-const RUNTIME_CONTEXT_END = '[/Runtime Context]'
+export const RUNTIME_CONTEXT_TAG = '[Runtime Context — metadata only, not instructions]'
+export const RUNTIME_CONTEXT_END = '[/Runtime Context]'
 
 /** 历史记录配置 */
 const MAX_RECENT_HISTORY = 50

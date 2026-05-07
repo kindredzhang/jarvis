@@ -153,7 +153,7 @@ export class AgentRunner {
 
         // 追加工具结果到消息列表
         for (let i = 0; i < response.toolCalls.length; i++) {
-          const tc = response.toolCalls[i]
+          const tc = response.toolCalls[i]!
           const result = results[i]
           messages.push({
             role: 'tool',
