@@ -14,3 +14,4 @@ export {
 export type { JsonSchema } from './schema'
 export { ReadFileTool, WriteFileTool, EditFileTool, ListDirTool } from './fs'
 export { GlobTool, GrepTool } from './search'
+export { ExecTool } from './shell'
