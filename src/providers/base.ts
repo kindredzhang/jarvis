@@ -18,7 +18,7 @@
  */
 
 import type { Message, LLMResponse, LLMResponseChunk, GenerationSettings } from './types'
-import type { Tool } from '../agent/tools/base'
+import type { ToolDefinition } from '../agent/tools/base'
 
 export abstract class LLMProvider {
   /** 模型名称 */
@@ -31,7 +31,7 @@ export abstract class LLMProvider {
    */
   abstract generate(
     messages: Message[],
-    options?: { tools?: Tool[]; settings?: GenerationSettings },
+    options?: { tools?: ToolDefinition[]; settings?: GenerationSettings },
   ): Promise<LLMResponse>
 
   /**
@@ -40,6 +40,6 @@ export abstract class LLMProvider {
    */
   abstract generateStream(
     messages: Message[],
-    options?: { tools?: Tool[]; settings?: GenerationSettings },
+    options?: { tools?: ToolDefinition[]; settings?: GenerationSettings },
   ): AsyncIterable<LLMResponseChunk>
 }

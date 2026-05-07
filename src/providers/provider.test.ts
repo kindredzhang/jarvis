@@ -119,7 +119,7 @@ test('generate - with tools sends tool schemas', async () => {
   const messages: Message[] = [{ role: 'user', content: '打招呼给 Alice' }]
   const tool = new GreetTool()
 
-  await provider.generate(messages, { tools: [tool] })
+  await provider.generate(messages, { tools: [tool.toSchema()] })
 
   expect(lastRequestBody.tools).toHaveLength(1)
   expect((lastRequestBody.tools as any[])[0].function.name).toBe('greet')

@@ -25,7 +25,7 @@
  */
 import { LLMProvider } from './base'
 import type { Message, LLMResponse, LLMResponseChunk, GenerationSettings, ToolCallRequest } from './types'
-import type { Tool } from '../agent/tools/base'
+import type { ToolDefinition } from '../agent/tools/base'
 
 export interface DeepSeekConfig {
   apiKey: string
@@ -69,7 +69,7 @@ export class DeepSeekProvider extends LLMProvider {
 
   async generate(
     messages: Message[],
-    options?: { tools?: Tool[]; settings?: GenerationSettings },
+    options?: { tools?: ToolDefinition[]; settings?: GenerationSettings },
   ): Promise<LLMResponse> {
     const body = this.buildRequestBody(messages, options)
     const data = await this.post(body)
@@ -82,7 +82,7 @@ export class DeepSeekProvider extends LLMProvider {
 
   async *generateStream(
     messages: Message[],
-    options?: { tools?: Tool[]; settings?: GenerationSettings },
+    options?: { tools?: ToolDefinition[]; settings?: GenerationSettings },
   ): AsyncIterable<LLMResponseChunk> {
     const body = this.buildRequestBody(messages, options, true)
     const response = await this.rawPost(body)
@@ -167,7 +167,7 @@ export class DeepSeekProvider extends LLMProvider {
 
   private buildRequestBody(
     messages: Message[],
-    options?: { tools?: Tool[]; settings?: GenerationSettings },
+    options?: { tools?: ToolDefinition[]; settings?: GenerationSettings },
     stream = false,
   ): Record<string, unknown> {
     const { tools, settings } = options ?? {}
@@ -180,7 +180,7 @@ export class DeepSeekProvider extends LLMProvider {
     }
 
     if (tools && tools.length > 0) {
-      body.tools = tools.map((t) => t.toSchema())
+      body.tools = tools
       body.tool_choice = 'auto'
     }
 
