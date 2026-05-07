@@ -1,42 +1,42 @@
 import { test, expect } from 'bun:test'
 import { ToolRegistry } from './registry'
 import { Tool, defineParams } from './base'
-import { validateJsonSchemaValue } from './schema'
+import { Schema, StringSchema, IntegerSchema, NumberSchema, BooleanSchema, ArraySchema, ObjectSchema, toolParametersSchema } from './schema'
 
 // ============ Schema 校验 ============
 
 test('validateJsonSchemaValue - type checks', () => {
-  expect(validateJsonSchemaValue(42, { type: 'integer' })).toEqual([])
-  expect(validateJsonSchemaValue('hi', { type: 'string' })).toEqual([])
-  expect(validateJsonSchemaValue(true, { type: 'boolean' })).toEqual([])
-  expect(validateJsonSchemaValue([1, 2], { type: 'array' })).toEqual([])
-  expect(validateJsonSchemaValue({ a: 1 }, { type: 'object' })).toEqual([])
+  expect(Schema.validateJsonSchemaValue(42, { type: 'integer' })).toEqual([])
+  expect(Schema.validateJsonSchemaValue('hi', { type: 'string' })).toEqual([])
+  expect(Schema.validateJsonSchemaValue(true, { type: 'boolean' })).toEqual([])
+  expect(Schema.validateJsonSchemaValue([1, 2], { type: 'array' })).toEqual([])
+  expect(Schema.validateJsonSchemaValue({ a: 1 }, { type: 'object' })).toEqual([])
 
-  expect(validateJsonSchemaValue('hi', { type: 'integer' })).toEqual(['parameter should be integer'])
-  expect(validateJsonSchemaValue(4.2, { type: 'integer' })).toEqual(['parameter should be integer'])
-  expect(validateJsonSchemaValue(null, { type: 'string' })).toEqual(['parameter should be string'])
+  expect(Schema.validateJsonSchemaValue('hi', { type: 'integer' })).toEqual(['parameter should be integer'])
+  expect(Schema.validateJsonSchemaValue(4.2, { type: 'integer' })).toEqual(['parameter should be integer'])
+  expect(Schema.validateJsonSchemaValue(null, { type: 'string' })).toEqual(['parameter should be string'])
 })
 
 test('validateJsonSchemaValue - nullable', () => {
-  expect(validateJsonSchemaValue(null, { type: 'string', nullable: true })).toEqual([])
+  expect(Schema.validateJsonSchemaValue(null, { type: 'string', nullable: true })).toEqual([])
 })
 
 test('validateJsonSchemaValue - enum', () => {
-  expect(validateJsonSchemaValue('a', { type: 'string', enum: ['a', 'b'] })).toEqual([])
-  expect(validateJsonSchemaValue('c', { type: 'string', enum: ['a', 'b'] })).toEqual([
+  expect(Schema.validateJsonSchemaValue('a', { type: 'string', enum: ['a', 'b'] })).toEqual([])
+  expect(Schema.validateJsonSchemaValue('c', { type: 'string', enum: ['a', 'b'] })).toEqual([
     'parameter must be one of ["a","b"]',
   ])
 })
 
 test('validateJsonSchemaValue - numeric bounds', () => {
-  expect(validateJsonSchemaValue(5, { type: 'integer', minimum: 1, maximum: 10 })).toEqual([])
-  expect(validateJsonSchemaValue(0, { type: 'integer', minimum: 1 })).toEqual(['parameter must be >= 1'])
-  expect(validateJsonSchemaValue(11, { type: 'integer', maximum: 10 })).toEqual(['parameter must be <= 10'])
+  expect(Schema.validateJsonSchemaValue(5, { type: 'integer', minimum: 1, maximum: 10 })).toEqual([])
+  expect(Schema.validateJsonSchemaValue(0, { type: 'integer', minimum: 1 })).toEqual(['parameter must be >= 1'])
+  expect(Schema.validateJsonSchemaValue(11, { type: 'integer', maximum: 10 })).toEqual(['parameter must be <= 10'])
 })
 
 test('validateJsonSchemaValue - string length', () => {
-  expect(validateJsonSchemaValue('hello', { type: 'string', minLength: 1, maxLength: 10 })).toEqual([])
-  expect(validateJsonSchemaValue('', { type: 'string', minLength: 1 })).toEqual(['parameter must be at least 1 chars'])
+  expect(Schema.validateJsonSchemaValue('hello', { type: 'string', minLength: 1, maxLength: 10 })).toEqual([])
+  expect(Schema.validateJsonSchemaValue('', { type: 'string', minLength: 1 })).toEqual(['parameter must be at least 1 chars'])
 })
 
 test('validateJsonSchemaValue - nested object', () => {
@@ -52,10 +52,10 @@ test('validateJsonSchemaValue - nested object', () => {
     },
     required: ['name'],
   }
-  expect(validateJsonSchemaValue({ name: 'Alice', age: 30, tags: ['a', 'b'] }, schema)).toEqual([])
-  expect(validateJsonSchemaValue({ age: 30 }, schema)).toEqual(['missing required name'])
-  expect(validateJsonSchemaValue({ name: 'Bob', age: -1 }, schema)).toEqual(['age must be >= 0'])
-  expect(validateJsonSchemaValue({ name: 'Bob', tags: [1, 2] }, schema)).toEqual([
+  expect(Schema.validateJsonSchemaValue({ name: 'Alice', age: 30, tags: ['a', 'b'] }, schema)).toEqual([])
+  expect(Schema.validateJsonSchemaValue({ age: 30 }, schema)).toEqual(['missing required name'])
+  expect(Schema.validateJsonSchemaValue({ name: 'Bob', age: -1 }, schema)).toEqual(['age must be >= 0'])
+  expect(Schema.validateJsonSchemaValue({ name: 'Bob', tags: [1, 2] }, schema)).toEqual([
     'tags[0] should be string',
     'tags[1] should be string',
   ])
@@ -231,4 +231,116 @@ test('ToolRegistry - execute error in tool', async () => {
   const result = await registry.execute('broken', {})
   expect(result).toContain('Error executing broken')
   expect(result).toContain('something went wrong')
+})
+
+// ============ Schema 子类 ============
+
+test('StringSchema - toJsonSchema', () => {
+  const s = new StringSchema({ description: '名称', minLength: 1, maxLength: 50 })
+  const schema = s.toJsonSchema()
+  expect(schema.type).toBe('string')
+  expect(schema.description).toBe('名称')
+  expect(schema.minLength).toBe(1)
+  expect(schema.maxLength).toBe(50)
+})
+
+test('StringSchema - nullable', () => {
+  const s = new StringSchema({ description: '备注', nullable: true })
+  const schema = s.toJsonSchema()
+  expect(schema.type).toEqual(['string', 'null'])
+})
+
+test('StringSchema - enum', () => {
+  const s = new StringSchema({ description: '颜色', enum: ['red', 'green', 'blue'] })
+  const schema = s.toJsonSchema()
+  expect(schema.enum).toEqual(['red', 'green', 'blue'])
+})
+
+test('StringSchema - validateValue', () => {
+  const s = new StringSchema({ minLength: 2, maxLength: 5 })
+  expect(s.validateValue('ab')).toEqual([])
+  expect(s.validateValue('a')).toEqual(['parameter must be at least 2 chars'])
+  expect(s.validateValue('abcdef')).toEqual(['parameter must be at most 5 chars'])
+})
+
+test('IntegerSchema - toJsonSchema', () => {
+  const s = new IntegerSchema({ description: '年龄', minimum: 0, maximum: 150 })
+  const schema = s.toJsonSchema()
+  expect(schema.type).toBe('integer')
+  expect(schema.minimum).toBe(0)
+  expect(schema.maximum).toBe(150)
+})
+
+test('IntegerSchema - validateValue', () => {
+  const s = new IntegerSchema({ minimum: 0 })
+  expect(s.validateValue(5)).toEqual([])
+  expect(s.validateValue(-1)).toEqual(['parameter must be >= 0'])
+  expect(s.validateValue(3.14)).toEqual(['parameter should be integer'])
+})
+
+test('NumberSchema - toJsonSchema', () => {
+  const s = new NumberSchema({ description: '价格', minimum: 0 })
+  expect(s.toJsonSchema().type).toBe('number')
+  expect(s.toJsonSchema().minimum).toBe(0)
+})
+
+test('BooleanSchema - toJsonSchema', () => {
+  const s = new BooleanSchema({ description: '是否启用', default: false })
+  const schema = s.toJsonSchema()
+  expect(schema.type).toBe('boolean')
+  expect(schema.default).toBe(false)
+})
+
+test('ArraySchema - toJsonSchema with StringSchema items', () => {
+  const s = new ArraySchema({ items: new StringSchema({ description: '标签' }), minItems: 1 })
+  const schema = s.toJsonSchema()
+  expect(schema.type).toBe('array')
+  expect((schema as any).items.type).toBe('string')
+  expect(schema.minItems).toBe(1)
+})
+
+test('ObjectSchema - toJsonSchema', () => {
+  const s = new ObjectSchema({
+    properties: {
+      name: new StringSchema({ description: '名称' }),
+      age: new IntegerSchema({ description: '年龄', minimum: 0 }),
+    },
+    required: ['name'],
+    description: '用户信息',
+  })
+  const schema = s.toJsonSchema()
+  expect(schema.type).toBe('object')
+  expect(schema.description).toBe('用户信息')
+  expect((schema as any).properties.name.type).toBe('string')
+  expect((schema as any).properties.age.type).toBe('integer')
+  expect(schema.required).toEqual(['name'])
+})
+
+test('ObjectSchema - validateValue', () => {
+  const s = new ObjectSchema({
+    properties: {
+      name: new StringSchema({ minLength: 1 }),
+      count: new IntegerSchema({ minimum: 0 }),
+    },
+    required: ['name'],
+  })
+  expect(s.validateValue({ name: 'Alice', count: 5 })).toEqual([])
+  expect(s.validateValue({})).toEqual(['missing required name'])
+  expect(s.validateValue({ name: 'Alice', count: -1 })).toEqual(['count must be >= 0'])
+})
+
+test('toolParametersSchema - builds root parameter schema', () => {
+  const schema = toolParametersSchema({
+    required: ['path'],
+    description: '读取文件内容',
+    properties: {
+      path: new StringSchema({ description: '文件路径' }),
+      encoding: new StringSchema({ description: '编码', enum: ['utf-8', 'gbk'] }),
+    },
+  })
+  expect(schema.type).toBe('object')
+  expect(schema.required).toEqual(['path'])
+  expect(schema.description).toBe('读取文件内容')
+  expect((schema as any).properties.path.type).toBe('string')
+  expect((schema as any).properties.encoding.enum).toEqual(['utf-8', 'gbk'])
 })

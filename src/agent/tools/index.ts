@@ -2,7 +2,13 @@ export { Tool, defineParams } from './base'
 export type { ToolDefinition } from './base'
 export { ToolRegistry } from './registry'
 export {
-  validateJsonSchemaValue,
-  resolveJsonSchemaType,
+  Schema,
+  StringSchema,
+  IntegerSchema,
+  NumberSchema,
+  BooleanSchema,
+  ArraySchema,
+  ObjectSchema,
+  toolParametersSchema,
 } from './schema'
 export type { JsonSchema } from './schema'

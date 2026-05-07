@@ -10,8 +10,19 @@
  * ========= 注意事项 =========
  *
  * 不要在 `function` 字段中传入中文字段（包括 description），否则 DeepSeek 可能会报错。
+ *
+ * ========= TODO: 与 nanobot 差异标注 =========
+ * 以下功能在 nanobot/providers/openai_compat_provider.py 中存在，本文件暂未实现：
+ * - 工具调用 ID 规范化：_normalize_tool_call_id (SHA1 哈希 9 字符)
+ * - 工具调用参数规范化：_normalize_tool_call_arguments (json_repair)
+ * - 环境变量配置：_setup_env (根据 ProviderSpec 注入 API key/base)
+ * - 会话亲和 Header：x-session-affinity
+ * - OpenRouter 归因 Header
+ * - Responses API 电路熔断：_responses_failures / _responses_tripped_at
+ * - Kimi thinking 模型检测：_is_kimi_thinking_model
+ * - 请求体非标准字段清洗：_ALLOWED_MSG_KEYS 过滤
+ * - 流式 SSE 连接级错误处理与自动重连
  */
-
 import { LLMProvider } from './base'
 import type { Message, LLMResponse, LLMResponseChunk, GenerationSettings, ToolCallRequest } from './types'
 import type { Tool } from '../agent/tools/base'

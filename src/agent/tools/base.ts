@@ -5,7 +5,7 @@
  * 可选的 readOnly / concurrencySafe / exclusive 属性控制并发行为。
  */
 
-import { validateJsonSchemaValue, resolveJsonSchemaType, type JsonSchema } from './schema'
+import { Schema, type JsonSchema } from './schema'
 
 /** OpenAI 工具定义格式 */
 export interface ToolDefinition {
@@ -76,7 +76,7 @@ export abstract class Tool {
       return [`parameters must be an object, got ${typeof params}`]
     }
     const schema = (this.parameters ?? {}) as JsonSchema
-    return validateJsonSchemaValue(params, { ...schema, type: 'object' })
+    return Schema.validateJsonSchemaValue(params, { ...schema, type: 'object' })
   }
 
   /** 转换为 OpenAI 工具定义格式 */
@@ -104,7 +104,7 @@ export abstract class Tool {
   }
 
   private castValue(val: unknown, schema: JsonSchema): unknown {
-    const t = resolveJsonSchemaType(schema.type as string | string[] | undefined)
+    const t = Schema.resolveJsonSchemaType(schema.type as string | string[] | undefined)
 
     // 已经是正确类型，直接返回
     if (t === 'boolean' && typeof val === 'boolean') return val
