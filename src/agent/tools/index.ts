@@ -12,3 +12,4 @@ export {
   toolParametersSchema,
 } from './schema'
 export type { JsonSchema } from './schema'
+export { ReadFileTool, WriteFileTool, EditFileTool, ListDirTool } from './fs'

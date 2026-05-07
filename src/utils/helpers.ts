@@ -39,7 +39,7 @@ export function writeTextSync(path: string, content: string): void {
  */
 export function stripThinkTags(text: string): string {
   const THINK_CLOSE = "<" + "/think>"
-  const re1 = new RegExp("[\\s\\S]*?" + THINK_CLOSE, "g")
+  const re1 = new RegExp("<think[\\s\\S]*?" + THINK_CLOSE, "g")
   let cleaned = text.replace(re1, "")
   cleaned = cleaned.replace(new RegExp("<think[\\s\\S]*$", "g"), "")
   return cleaned.trim()
