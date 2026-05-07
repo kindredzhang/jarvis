@@ -119,7 +119,7 @@ export abstract class Schema {
 
       for (const [key, valItem] of Object.entries(obj)) {
         if (key in props) {
-          errors.push(...Schema.validateJsonSchemaValue(valItem, props[key], Schema.subpath(path, key)))
+          errors.push(...Schema.validateJsonSchemaValue(valItem, props[key]!, Schema.subpath(path, key)))
         }
       }
     }

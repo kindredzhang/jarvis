@@ -74,7 +74,7 @@ class GreetTool extends Tool {
     },
     required: ['name'],
   })
-  get readOnly(): boolean {
+  override get readOnly(): boolean {
     return true
   }
 

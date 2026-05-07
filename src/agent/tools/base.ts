@@ -98,7 +98,7 @@ export abstract class Tool {
     const props = (schema.properties ?? {}) as Record<string, JsonSchema>
     const result: Record<string, unknown> = {}
     for (const [key, val] of Object.entries(obj)) {
-      result[key] = key in props ? this.castValue(val, props[key]) : val
+      result[key] = key in props ? this.castValue(val, props[key]!) : val
     }
     return result
   }

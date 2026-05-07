@@ -13,7 +13,7 @@ beforeAll(() => {
   server = Bun.serve<{ expectedBody: Record<string, unknown> }>({
     port: 0,
     async fetch(req) {
-      lastRequestBody = await req.json()
+      lastRequestBody = await req.json() as Record<string, unknown>
       const url = new URL(req.url)
 
       if (url.pathname === '/chat/completions') {
