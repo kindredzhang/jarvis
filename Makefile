@@ -4,7 +4,6 @@
 
 install:
 	@echo "🔧 Installing jarvis..."
-	@cd tui && uv sync --quiet
 	@bun install --silent
 	@chmod +x bin/jarvis
 	@echo "✓ jarvis installed. Run: ./bin/jarvis agent"
@@ -13,7 +12,7 @@ test:
 	@bun test
 
 clean:
-	@rm -rf tui/__pycache__ .jarvis-server.pid
+	@rm -rf .jarvis-server.pid
 	@echo "Cleaned"
 
 # ──── Quick Start ────

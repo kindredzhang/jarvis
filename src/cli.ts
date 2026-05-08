@@ -2,7 +2,7 @@
 /**
  * jarvis CLI — Commander.js entry point.
  *
- * Port of nanobot/cli/commands.py. Every command is implemented in
+ * Port of original Python CLI commands. Every command is implemented in
  * src/cli/commands.ts and imported here for Commander registration.
  */
 

@@ -1,7 +1,7 @@
 /**
  * AnthropicProvider —— Anthropic/Claude API provider
  *
- * 1:1 port of nanobot/providers/anthropic_provider.py.
+ * Ported from Python original providers/anthropic_provider.py.
  * Uses raw fetch (not SDK) for Messages API with SSE streaming.
  */
 

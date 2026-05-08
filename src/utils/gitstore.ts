@@ -4,7 +4,7 @@
  * 管理记忆文件的版本历史，支持：
  * - init / auto_commit / log / diff / revert / line_ages
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 基于 git CLI 而非 dulwich 库
  * - 无 _resolve_sha 精确前缀匹配（直接精确匹配）
  * - 无 _is_inside_git_repo 检查

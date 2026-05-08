@@ -1,7 +1,7 @@
 /**
  * LLMProvider —— LLM 供应商抽象基类
  *
- * 1:1 port of nanobot/providers/base.py core interface.
+ * Ported from Python original providers/base.py core interface.
  */
 
 import type { Message, LLMResponse, LLMResponseChunk, GenerationSettings } from './types'

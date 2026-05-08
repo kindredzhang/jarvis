@@ -1,7 +1,7 @@
 /**
  * Shared helpers for decoding `data:...;base64,...` URLs to disk.
  *
- * Port of nanobot/utils/media_decode.py.
+ * Port of original Python utils/media_decode.py.
  */
 
 import { writeFileSync, mkdirSync } from 'node:fs'

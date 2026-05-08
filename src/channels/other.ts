@@ -7,7 +7,7 @@
  * - onMessage 回调处理入站消息
  *
  * ========= 未实现通道 =========
- * 以下通道在 nanobot 中存在但暂未实现完整逻辑：
+ * 以下通道在 Python 原版中存在但暂未实现完整逻辑：
  * - Slack：Event API + Web API（需 Slack App + Bot Token）
  * - DingTalk：钉钉机器人 webhook（需 access_token）
  * - WeCom：企业微信机器人 webhook（需 key）

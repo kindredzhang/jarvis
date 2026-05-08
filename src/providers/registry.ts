@@ -1,7 +1,7 @@
 /**
  * ProviderRegistry — single source of truth for LLM provider metadata.
  *
- * Port of nanobot/providers/registry.py. Adding a provider:
+ * Port of original Python providers/registry.py. Adding a provider:
  *  1. Add a ProviderSpec to PROVIDERS below.
  *  2. Add a field to ProvidersConfig in config/schema.py.
  *  Done. Env vars, config matching, status display all derive from here.

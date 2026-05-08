@@ -4,8 +4,8 @@
  * 负责拼接系统提示词（身份 + 引导文件 + 记忆 + 历史），
  * 以及运行时上下文注入和消息格式转换。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * 以下在 nanobot/agent/context.py 中存在，本文件暂未实现：
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * 以下功能待移植（Python 原版 context.py）：
  * - SkillsLoader 集成：skills.get_always_skills / load_skills_for_context
  * - render_template 模板渲染：identity.md / platform_policy.md / skills_section.md
  * - _is_template_content：检测内容是否为未修改的模板（需要打包模板文件）

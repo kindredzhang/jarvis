@@ -4,9 +4,9 @@
  * 管理工作区和内置技能的 SKILL.md 文件。
  * 提供技能列表、摘要、元数据提取、始终加载等功能。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 无 YAML 解析器（当前用正则提取 frontmatter 字段）
- * - 无 _parse_nanobot_metadata 元数据嵌套解析
+ * - 无 _parse_jarvis_metadata 元数据嵌套解析
  * - 无 shutil.which 依赖检查（bins 检查跳过）
  * - 无 YAML frontmatter 写回
  * - 无 _strip_frontmatter 对非 --- 开头的容错

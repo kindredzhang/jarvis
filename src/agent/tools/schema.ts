@@ -5,7 +5,7 @@
  * - toJsonSchema(): 返回兼容 validateJsonSchemaValue 的 JSON Schema 片段
  * - validateValue(value): 校验单个值，返回错误消息列表（空 = 合法）
  *
- * 参考 nanobot.agent.tools.base.Schema / nanobot.agent.tools.schema
+ * 参考 Python 原版 tools.base.Schema / tools.schema
  */
 
 /** JSON Schema 原始类型 */

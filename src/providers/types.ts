@@ -1,7 +1,7 @@
 /**
  * Provider 层类型定义
  *
- * 1:1 port of nanobot/providers/base.py data classes.
+ * Ported from Python original providers/base.py data classes.
  */
 
 /** LLM 工具调用请求 */

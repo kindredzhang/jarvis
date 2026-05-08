@@ -1,7 +1,7 @@
 /**
  * WebSocketChannel — WebSocket server channel
  *
- * Port of nanobot/channels/websocket.py.
+ * Port of original Python project.
  * Bun.serve dual HTTP + WebSocket server with:
  * - Token-based auth (issued single-use + API multi-use tokens)
  * - Envelope protocol (new_chat / attach / message typed frames)
@@ -364,7 +364,7 @@ export class WebSocketChannel extends BaseChannel {
       try { return createHmac('sha256', secret).update(bearer).digest().length === 32 } catch { /* fall through */ }
       return bearer === secret
     }
-    const headerToken = req.headers.get('X-Nanobot-Auth') || req.headers.get('x-nanobot-auth')
+    const headerToken = req.headers.get('X-Jarvis-Auth') || req.headers.get('x-jarvis-auth')
     return headerToken?.trim() === secret
   }
 

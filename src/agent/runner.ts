@@ -4,7 +4,7 @@
  * 执行 "LLM 调用 → 工具执行 → 结果反馈 → LLM 再调用" 的循环，
  * 直到 LLM 返回最终响应或达到最大迭代次数。
  *
- * 从 nanobot/agent/runner.py 1:1 移植。
+ * 从 Python 原版 runner.py 移植。
  */
 
 import type { LLMProvider } from '../providers/base'

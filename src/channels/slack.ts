@@ -1,7 +1,7 @@
 /**
  * SlackChannel — Slack Socket Mode channel
  *
- * Port of nanobot/channels/slack.py.
+ * Port of original Python channels/slack.py.
  * Uses fetch() for Slack Web API and WebSocket API for Socket Mode.
  * No slack_sdk dependency — implements Slack API protocol directly.
  */

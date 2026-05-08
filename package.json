@@ -18,10 +18,26 @@
         "bun": ">=1.0.0"
     },
     "scripts": {
-        "postinstall": "echo 'jarvis installed! Run `jarvis --help` to get started.'",
         "start": "jarvis agent",
-        "test": "bun test"
+        "test": "bun test",
+        "prepublishOnly": "bun test",
+        "postinstall": "echo 'jarvis installed! Run `jarvis --help` to get started.'"
     },
+    "publishConfig": {
+        "access": "public"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kindredzhang/jarvis.git"
+    },
+    "keywords": [
+        "ai",
+        "agent",
+        "llm",
+        "cli",
+        "assistant"
+    ],
+    "license": "MIT",
     "devDependencies": {
         "@types/bun": "latest"
     },

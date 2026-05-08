@@ -1,7 +1,7 @@
 /**
  * Restart notice helpers — portable env-based signaling across process restarts.
  *
- * Port of nanobot/utils/restart.py. Uses environment variables to pass
+ * Port of original Python utils/restart.py. Uses environment variables to pass
  * restart context (channel, chat_id, started_at) to the next process.
  */
 

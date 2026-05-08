@@ -1,7 +1,7 @@
 /**
  * Voice transcription providers (Groq and OpenAI Whisper).
  *
- * Port of nanobot/providers/transcription.py.
+ * Port of original Python providers/transcription.py.
  */
 
 import { existsSync } from 'node:fs'

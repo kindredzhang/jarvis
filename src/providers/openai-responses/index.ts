@@ -1,7 +1,7 @@
 /**
  * OpenAI Responses API — converters and SSE stream parsing.
  *
- * Port of nanobot/providers/openai_responses/.
+ * Port of original Python providers/openai_responses/.
  */
 
 export { convertMessages, convertTools, splitToolCallId } from './converters'

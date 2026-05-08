@@ -1,8 +1,8 @@
 /**
  * 搜索工具 —— glob 文件查找 + grep 内容正则搜索
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * 以下在 nanobot/agent/tools/search.py 中存在，本文件暂未实现：
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * 以下功能待移植（Python 原版 search.py）：
  * - file_type 过滤（_TYPE_GLOB_MAP 按语言类型筛选）
  * - entry_type="both"/"dirs"（GlobTool 同时匹配目录）
  * - max_matches / max_results 别名参数

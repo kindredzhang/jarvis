@@ -5,7 +5,7 @@
  * 每个子代理持有自己的 ToolRegistry（文件工具 + 执行工具），
  * 运行独立的 ReAct 循环。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 无 SkillsLoader / 技能摘要
  * - 无 SkillsLoader / 技能摘要
  * - 无 MessageBus 注入（通过 onResult 回调通知）

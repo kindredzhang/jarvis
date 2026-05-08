@@ -4,7 +4,7 @@
  * 所有通道（Feishu / WhatsApp / Telegram / Discord 等）应实现此接口。
  *
  * ========= TODO: 其他通道 =========
- * 以下通道在 nanobot/channels/ 中存在，暂未移植：
+ * 以下通道在 Python 原版中存在，暂未移植：
  * - Telegram: Bot API webhook + polling
  * - Discord: Discord Gateway + REST API
  * - Slack: Event API + Web API

@@ -1,7 +1,7 @@
 /**
  * WeComChannel —— 企业微信机器人通道
  *
- * Port of nanobot/channels/wecom.py.
+ * Port of original Python channels/wecom.py.
  * Uses WeCom Corp REST API (HTTP) for sending messages and webhook for receiving.
  * No wecom_aibot_sdk dependency — implements the WeCom API protocol directly.
  *

@@ -1,10 +1,10 @@
 /**
- * Nanobot — high-level programmatic interface to the jarvis agent.
+ * Jarvis — high-level programmatic interface to the jarvis agent.
  *
- * Port of nanobot/nanobot.py.
+ * Port of original Python project.
  *
  * Usage:
- *   const bot = Nanobot.fromConfig()
+ *   const bot = Jarvis.fromConfig()
  *   const result = await bot.run("Summarize this repo")
  *   console.log(result.content)
  */
@@ -28,7 +28,7 @@ export interface RunResult {
 }
 
 // ========================================================================
-// Provider creation (port of _make_provider from nanobot/cli/commands.py)
+// Provider creation (port of _make_provider from original Python CLI commands)
 // ========================================================================
 
 /** Extract provider name from config (model-based auto-detection). */
@@ -91,7 +91,7 @@ export function makeProviderFromConfig(config: JarvisConfig): LLMProvider {
 }
 
 // ========================================================================
-// Nanobot facade
+// Jarvis facade
 // ========================================================================
 
 /**
@@ -100,7 +100,7 @@ export function makeProviderFromConfig(config: JarvisConfig): LLMProvider {
  * Wraps AgentLoop setup, config loading, and provider creation so
  * that API consumers and scripts don't need to wire everything manually.
  */
-export class Nanobot {
+export class Jarvis {
   private _loop: AgentLoop
 
   constructor(loop: AgentLoop) {
@@ -108,12 +108,12 @@ export class Nanobot {
   }
 
   /**
-   * Create a Nanobot instance from a config file.
+   * Create a Jarvis instance from a config file.
    *
    * @param configPath - Path to config file. Defaults to ~/.jarvis/config.json.
    * @param workspace - Override the workspace directory from config.
    */
-  static fromConfig(configPath?: string, workspace?: string): Nanobot {
+  static fromConfig(configPath?: string, workspace?: string): Jarvis {
     const config = loadConfig(configPath)
     const defaults = config.agents?.defaults
     const ws = workspace || defaults?.workspace?.replace(/^~/, homedir()) || join(homedir(), '.jarvis')
@@ -135,7 +135,7 @@ export class Nanobot {
     }
 
     const loop = new AgentLoop(loopConfig)
-    return new Nanobot(loop)
+    return new Jarvis(loop)
   }
 
   /**

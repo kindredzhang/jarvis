@@ -1,7 +1,7 @@
 /**
  * MyTool —— runtime state inspection and configuration
  *
- * 1:1 port of nanobot/agent/tools/self.py (450 lines).
+ * Ported from Python original agent/tools/self.py (450 lines).
  */
 
 import { Tool, defineParams } from './base'

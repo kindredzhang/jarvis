@@ -1,7 +1,7 @@
 /**
  * DingTalkChannel —— 钉钉机器人通道
  *
- * Port of nanobot/channels/dingtalk.py.
+ * Port of original Python channels/dingtalk.py.
  * Uses DingTalk REST API (HTTP) for sending messages.
  * Receives via webhook endpoint when using outgoing bot mode.
  *

@@ -1,5 +1,5 @@
 /**
- * Runtime path helpers — port of nanobot/config/paths.py
+ * Runtime path helpers — port of original Python project
  */
 
 import { existsSync, mkdirSync } from 'node:fs'

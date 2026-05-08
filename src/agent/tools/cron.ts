@@ -1,7 +1,7 @@
 /**
  * CronTool —— schedule reminders and recurring tasks
  *
- * 1:1 port of nanobot/agent/tools/cron.py (279 lines).
+ * Ported from Python original agent/tools/cron.py (279 lines).
  */
 
 import { Tool, defineParams } from './base'

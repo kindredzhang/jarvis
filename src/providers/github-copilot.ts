@@ -1,7 +1,7 @@
 /**
  * GitHub Copilot OAuth-backed provider.
  *
- * Port of nanobot/providers/github_copilot_provider.py.
+ * Port of original Python project.
  *
  * Uses GitHub device flow OAuth to obtain a token, then exchanges it
  * for a Copilot access token on each API call.

@@ -1,7 +1,7 @@
 /**
  * EmailChannel —— IMAP 收信 + SMTP 发信通道
  *
- * Port of nanobot/channels/email.py.
+ * Port of original Python channels/email.py.
  * Uses raw TCP/TLS connections for IMAP and SMTP (no external SDKs).
  * Supports SPF/DKIM verification, attachment extraction, HTML→text conversion.
  */

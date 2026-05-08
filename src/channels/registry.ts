@@ -1,7 +1,7 @@
 /**
  * Channel registry — auto-discovery for built-in channel modules.
  *
- * Port of nanobot/channels/registry.py.
+ * Port of original Python channels/registry.py.
  */
 
 import type { BaseChannel } from './base'

@@ -1,7 +1,7 @@
 /**
  * Sync bundled templates to workspace directory.
  *
- * Port of nanobot/utils/helpers.py::sync_workspace_templates.
+ * Port of original Python utils/helpers.py::sync_workspace_templates.
  * Copies missing template files from the project templates/ directory
  * into the user's workspace on first initialization.
  */

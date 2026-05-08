@@ -1,7 +1,7 @@
 /**
  * Agent system prompt template loading.
  *
- * Port of nanobot/utils/prompt_templates.py.
+ * Port of original Python utils/prompt_templates.py.
  * Agent prompts live under the project's templates/ directory.
  * Uses the built-in TemplateEngine for rendering.
  */

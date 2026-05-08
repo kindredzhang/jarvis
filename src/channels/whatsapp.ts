@@ -9,7 +9,7 @@
  * 3. 解析消息 → InboundMessage → AgentLoop.processMessage
  * 4. 通过 WhatsApp Cloud API 发送回复
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 无 Node.js WebSocket bridge（直接 REST API）
  * - 无图片/音频/文档媒体消息处理
  * - 无位置/联系人/按钮交互消息

@@ -1,7 +1,7 @@
 /**
  * Azure OpenAI provider — uses the Responses API endpoint.
  *
- * Port of nanobot/providers/azure_openai_provider.py.
+ * Port of original Python providers/azure_openai_provider.py.
  *
  * Endpoint: {api_base}/openai/v1/responses
  * Model name = Azure deployment name.

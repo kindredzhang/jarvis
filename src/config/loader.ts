@@ -1,5 +1,5 @@
 /**
- * Configuration loading — port of nanobot/config/loader.py
+ * Configuration loading — port of original Python project
  *
  * Loads JSON config from file, applies migration, resolves ${VAR} env vars.
  */

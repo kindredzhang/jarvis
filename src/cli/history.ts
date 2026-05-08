@@ -1,7 +1,7 @@
 /**
  * Persistent file history for interactive CLI input.
  *
- * Port of nanobot's SafeFileHistory (prompt_toolkit FileHistory subclass
+ * Port of Python original SafeFileHistory (prompt_toolkit FileHistory subclass
  * with surrogate character sanitization).
  */
 
@@ -46,7 +46,7 @@ export class FileHistory {
   /** Append a line to the history file, sanitizing bad characters. */
   storeString(text: string): void {
     if (!text) return
-    // Sanitize surrogate characters (same as nanobot's SafeFileHistory)
+    // Sanitize surrogate characters (same as Python original SafeFileHistory)
     const safe = text
       .normalize('NFC')
       .replace(/[\uD800-\uDFFF]/g, '?')

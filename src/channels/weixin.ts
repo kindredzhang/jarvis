@@ -1,7 +1,7 @@
 /**
  * WeixinChannel — Personal WeChat (微信) channel using HTTP long-poll API
  *
- * Port of nanobot/channels/weixin.py.
+ * Port of original Python channels/weixin.py.
  * Uses the ilinkai.weixin.qq.com API for personal WeChat messaging.
  * Protocol reverse-engineered from @tencent-weixin/openclaw-weixin v1.0.3.
  *

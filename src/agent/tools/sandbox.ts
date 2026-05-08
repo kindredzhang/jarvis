@@ -1,7 +1,7 @@
 /**
  * Sandbox backends for shell command execution.
  *
- * Port of nanobot/agent/tools/sandbox.py.
+ * Port of original Python project.
  * To add a new backend, add a function and register it in _BACKENDS.
  */
 

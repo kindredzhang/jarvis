@@ -1,7 +1,7 @@
 /**
  * 文档提取工具 —— PDF/Office 文档文本提取
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - PDF：调用 python3 pymupdf（需 pip install pymupdf）
  * - .docx：优先 macOS textutil，回退 ZIP+XML 解析
  * - .xlsx / .pptx：ZIP+XML 解析（不依赖外部库）

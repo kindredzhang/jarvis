@@ -8,7 +8,7 @@
  *
  * 将 MCP 服务器的 tools 包装为 Tool 注册到 ToolRegistry。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 无 MCPResourceWrapper（resource 包装）
  * - 无 MCPPromptWrapper（prompt 包装）
  * - 无 schema 规范化（nullable oneOf/anyOf）

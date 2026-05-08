@@ -1,7 +1,7 @@
 /**
  * Structured progress-event helpers shared by agent runtimes.
  *
- * Port of nanobot/utils/progress_events.py.
+ * Port of original Python utils/progress_events.py.
  */
 
 /**

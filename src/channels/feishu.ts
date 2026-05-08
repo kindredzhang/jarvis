@@ -10,7 +10,7 @@
  * 3. 解析消息 → InboundMessage → AgentLoop.processMessage
  * 4. 通过飞书 API 发送回复
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 无 WebSocket 长连接（使用 Webhook）
  * - 无 lark-oapi SDK（直接 fetch API）
  * - 无 CardKit 流式卡片（当前纯文本回复）

@@ -6,7 +6,7 @@
  * Special chars: *(any), N(exact), N-M(range), step syntax,
  * L(last day), W(weekday)
  *
- * Port of Python croniter functionality used in nanobot.
+ * Port of Python croniter functionality used in original project.
  */
 
 function parseCronField(

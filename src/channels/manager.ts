@@ -1,7 +1,7 @@
 /**
  * ChannelManager — coordinating chat channels.
  *
- * Port of nanobot/channels/manager.py.
+ * Port of original Python project.
  * Manages channel lifecycle and routes outbound messages.
  */
 

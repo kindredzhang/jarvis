@@ -1,8 +1,8 @@
 /**
  * 文件系统工具 —— 读写编辑列表
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * 以下在 nanobot/agent/tools/filesystem.py 中存在，本文件暂未实现：
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * 以下功能待移植（Python 原版 filesystem.py）：
  * - PDF 阅读支持（pymupdf/fitz）
  * - Office 文档支持（.docx/.xlsx/.pptx 提取文本）
  * - 图片 MIME 检测与 ContentBlock 返回（build_image_content_blocks）

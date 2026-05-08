@@ -4,8 +4,8 @@
  * 负责管理 MEMORY.md / history.jsonl / SOUL.md / USER.md 等文件。
  * 提供 JSONL 格式的历史记录追加/读取/压缩及游标管理。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * 以下功能在 nanobot/agent/memory.py 中存在，本文件暂未实现：
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * 以下功能在 Python 原版 memory.py 中存在，本文件暂未实现：
  * - GitStore 集成：文件修改后自动 git commit
  * - HISTORY.md 传统格式迁移：_maybe_migrate_legacy_history
  * - raw_archive 原始归档（依赖 strip_think + truncate_text）

@@ -1,7 +1,7 @@
 /**
  * Streaming renderer for CLI output.
  *
- * Port of nanobot/cli/stream.py. Uses marked-terminal for rich.Markdown-
+ * Port of original Python project. Uses marked-terminal for rich.Markdown-
  * equivalent rendering, chalk for ANSI styling, and manual cursor control
  * for flicker-free live updates (equivalent to rich.Live auto_refresh=False).
  *
@@ -39,7 +39,7 @@ function renderMarkdown(text: string): string {
 /**
  * Spinner that shows "jarvis is thinking..." with pause support.
  *
- * Port of nanobot's ThinkingSpinner (rich.console.Status wrapper).
+ * Port of Python original ThinkingSpinner (rich.console.Status wrapper).
  */
 export class ThinkingSpinner {
   private _interval: ReturnType<typeof setInterval> | null = null
@@ -86,7 +86,7 @@ export class ThinkingSpinner {
    * Context manager: temporarily stop spinner for clean output.
    * Returns a resume function.
    *
-   * Port of nanobot's ThinkingSpinner.pause() (contextmanager).
+   * Port of Python original ThinkingSpinner.pause() (contextmanager).
    */
   pause(): () => void {
     if (this._active) {
@@ -120,7 +120,7 @@ function countAnsiFreeLines(text: string): number {
  * Accumulates text deltas and updates the terminal display with
  * throttled refresh (min 150ms between updates).
  *
- * Port of nanobot's StreamRenderer which uses rich.Live(auto_refresh=False).
+ * Port of Python original StreamRenderer which uses rich.Live(auto_refresh=False).
  */
 export class StreamRenderer {
   private _renderMarkdown: boolean

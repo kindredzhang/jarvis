@@ -1,7 +1,7 @@
 /**
  * Parse Responses API SSE streams and SDK response objects.
  *
- * Port of nanobot/providers/openai_responses/parsing.py.
+ * Port of original Python providers/openai_responses/parsing.py.
  */
 
 export interface ResponseToolCall {

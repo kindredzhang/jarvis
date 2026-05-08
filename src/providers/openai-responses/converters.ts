@@ -1,7 +1,7 @@
 /**
  * Convert Chat Completions messages/tools to Responses API format.
  *
- * Port of nanobot/providers/openai_responses/converters.py.
+ * Port of original Python providers/openai_responses/converters.py.
  */
 
 export function convertMessages(

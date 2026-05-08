@@ -1,7 +1,7 @@
 /**
  * Network security utilities — SSRF protection and internal URL detection.
  *
- * 1:1 port of nanobot/security/network.py.
+ * Ported from Python original security/network.py.
  */
 
 import { resolve4, resolve6 } from 'node:dns/promises'

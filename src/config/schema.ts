@@ -1,5 +1,5 @@
 /**
- * Configuration schema — port of nanobot/config/schema.py
+ * Configuration schema — port of original Python project
  *
  * All interfaces use camelCase keys and accept the JSON keys used in config
  * files (camelCase by convention, snake_case also accepted during loading).

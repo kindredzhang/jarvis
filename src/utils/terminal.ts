@@ -1,7 +1,7 @@
 /**
  * Terminal management utilities.
  *
- * Port of nanobot/cli/commands.py terminal helpers:
+ * Port of original Python cli/commands.py terminal helpers:
  * - termios save/restore for clean TTY state
  * - flush pending TTY input
  */

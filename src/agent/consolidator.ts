@@ -4,7 +4,7 @@
  * Consolidator：当对话上下文超预算时，将早期消息摘要归档到 history.jsonl。
  * Dream：后台处理未归档的历史条目，更新 MEMORY.md。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - token 估算使用 4 字符 ≈ 1 token 的经验公式（而非 tiktoken）
  * - Consolidator 无 session.last_consolidated 游标（直接截断 messages）
  * - Dream 无 GitStore 版本管理 / line_ages 标注 / AgentRunner Phase 2
@@ -191,7 +191,7 @@ export class Consolidator {
 /**
  * AutoCompact — 空闲会话主动压缩
  *
- * 1:1 从 nanobot/agent/autocompact.py 移植。
+ * 从 Python 原版 autocompact.py 移植。
  * 当会话 TTL 过期时，将未归档的前缀消息发送给 Consolidator 做摘要，
  * 摘要存入 session.metadata._last_summary，消息列表替换为保留的后缀。
  */

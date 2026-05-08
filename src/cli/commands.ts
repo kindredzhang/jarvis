@@ -1,7 +1,7 @@
 /**
  * CLI commands for jarvis.
  *
- * Port of nanobot/cli/commands.py. Every command is implemented as an
+ * Port of original Python CLI commands. Every command is implemented as an
  * exported async function called from the Commander-based entry point.
  *
  * Commands:

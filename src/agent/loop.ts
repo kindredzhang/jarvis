@@ -4,8 +4,8 @@
  * 从 MessageBus 消费入站消息，构建上下文，执行 ReAct 循环，发布出站响应。
  * 这是连接所有子系统的顶层编排器。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * 以下在 nanobot/agent/loop.py 中存在，本文件暂未实现：
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * 以下功能待移植（Python 原版 loop.py）：
  * - SessionManager / Session：完整的会话持久化体系（含 metadata、checkpoint、pending_user_turn）
  *   当前使用 SessionStore（轻量 JSONL 持久化）替代
  * - Consolidator：memory 固化（将对话总结写入 MEMORY.md）

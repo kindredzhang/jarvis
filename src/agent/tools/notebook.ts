@@ -1,7 +1,7 @@
 /**
  * NotebookEditTool —— edit Jupyter .ipynb notebooks
  *
- * 1:1 port of nanobot/agent/tools/notebook.py.
+ * Ported from Python original agent/tools/notebook.py.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'

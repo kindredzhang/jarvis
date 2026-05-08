@@ -1,5 +1,5 @@
 /**
- * Cron types — 1:1 port of nanobot/cron/types.py
+ * Cron types — Ported from Python original cron/types.py
  */
 
 export interface CronSchedule {

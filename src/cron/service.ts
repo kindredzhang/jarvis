@@ -1,7 +1,7 @@
 /**
  * CronService —— 定时任务服务
  *
- * 1:1 port of nanobot/cron/service.py (558 lines).
+ * Ported from Python original cron/service.py (558 lines).
  * Manages and executes scheduled jobs with file persistence,
  * system job protection, run history tracking, and cross-process
  * action queue via action.jsonl.

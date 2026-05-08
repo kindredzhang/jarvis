@@ -1,14 +1,14 @@
 /**
  * 通用辅助函数
  *
- * 包含从 nanobot/utils/runtime.py 和 nanobot/utils/helpers.py
+ * 包含从 Python 原版 utils/runtime.py 和 utils/helpers.py
  * 1:1 移植的运行时工具函数。
  */
 
 import { mkdir } from 'node:fs/promises'
 import { readFileSync, writeFileSync } from 'node:fs'
 
-// ---- 从 nanobot/utils/runtime.py 移植的常量 ----
+// ---- 从 Python 原版 runtime.py 移植的常量 ----
 
 /** 重复外部查找的最大次数（web_search / web_fetch） */
 export const MAX_REPEAT_EXTERNAL_LOOKUPS = 2
@@ -53,12 +53,12 @@ export function writeTextSync(path: string, content: string): void {
 /**
  * 清除思考标签（Agent内部推理过程不写入历史）
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * nanobot 使用 strip_think，包含更多逻辑
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * Python 原版使用 strip_think，包含更多逻辑
  */
 /**
  * Split content into chunks within maxLen, preferring line breaks.
- * Port of nanobot/utils/helpers.py split_message.
+ * Port of original Python helpers.py split_message.
  */
 export function splitMessage(content: string, maxLen: number = 2000): string[] {
   if (!content) return []
@@ -151,7 +151,7 @@ export function buildAssistantMessage(
   return msg
 }
 
-// ---- 从 nanobot/utils/runtime.py 移植的函数 ----
+// ---- 从 Python 原版 runtime.py 移植的函数 ----
 
 /** 空工具结果的简短标记 */
 export function emptyToolResultMessage(toolName: string): string {

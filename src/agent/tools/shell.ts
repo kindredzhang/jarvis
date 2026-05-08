@@ -1,8 +1,8 @@
 /**
  * ExecTool —— shell 命令执行工具
  *
- * ========= TODO: 与 nanobot 差异标注 =========
- * 以下在 nanobot/agent/tools/shell.py 中存在，本文件暂未实现：
+ * ========= TODO: 与 Python 原版差异标注 =========
+ * 以下功能待移植（Python 原版 shell.py）：
  * - sandbox 沙箱支持（wrap_command）
  * - 内部/私有 URL 检测（contains_internal_url）
  * - 工作空间外路径检测（media_path / get_media_dir）

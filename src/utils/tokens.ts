@@ -1,6 +1,6 @@
 /**
  * Token estimation for context-window governance.
- * Ported 1:1 from nanobot/utils/helpers.py.
+ * Ported from Python original helpers.py.
  *
  * Uses character-based heuristics as the primary estimator.
  * For production use, swap in js-tiktoken or a provider-side token counter.

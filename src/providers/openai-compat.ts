@@ -4,7 +4,7 @@
  * 适用于 DeepSeek、OpenAI、Azure OpenAI、Ollama、LM Studio、OpenRouter 等
  * 所有兼容 OpenAI /v1/chat/completions 接口的 API。
  *
- * ========= TODO: 与 nanobot 差异标注 =========
+ * ========= TODO: 与 Python 原版差异标注 =========
  * - 工具调用 ID 热修复（_normalize_tool_call_id / SHA1 9 字符）
  * - 工具参数 JSON 修复（json_repair / 自动补全）
  * - OpenRouter 归因 Header
