@@ -53,11 +53,15 @@ CMD="${1:-agent}"
 shift 2>/dev/null || true
 
 case "$CMD" in
-    agent|gateway|onboard|status)
+    agent|gateway|onboard)
         start_server
         trap 'stop_server' EXIT
         cd "$ROOT/tui"
         exec uv run jarvis "$CMD" "$@"
+        ;;
+    status)
+        cd "$ROOT/tui"
+        exec uv run jarvis status
         ;;
     serve)
         cd "$ROOT"
