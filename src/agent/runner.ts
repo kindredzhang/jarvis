@@ -52,6 +52,8 @@ export interface AgentRunSpec {
   failOnToolError?: boolean
   /** 当前时间戳信息（注入 runtime context） */
   runtimeContext?: string
+  /** 流式增量回调 */
+  onStreamDelta?: (delta: string) => void
 }
 
 /** 单次 Agent 执行的结果 */
@@ -225,25 +227,52 @@ export class AgentRunner {
   }
 
   /**
-   * 调用 LLM 模型
+   * 调用 LLM 模型（支持流式）
    */
   private async requestModel(
     spec: AgentRunSpec,
     messages: Record<string, unknown>[],
   ): Promise<LLMResponse> {
     const toolDefs = spec.tools.getDefinitions()
+    const onStream = spec.onStreamDelta
 
-    return this.provider.generate(
-      messages as any, // Message 类型兼容
-      {
+    // 非流式模式
+    if (!onStream) {
+      return this.provider.generate(messages as any, {
         tools: toolDefs as any,
-        settings: {
-          temperature: spec.temperature,
-          maxTokens: spec.maxTokens,
-          reasoningEffort: spec.reasoningEffort,
-        },
-      },
-    )
+        settings: { temperature: spec.temperature, maxTokens: spec.maxTokens, reasoningEffort: spec.reasoningEffort },
+      })
+    }
+
+    // 流式模式
+    let content = ''
+    let finishReason: LLMResponse['finishReason'] = 'stop'
+    const toolCalls: ToolCallRequest[] = []
+    let usage: { promptTokens: number; completionTokens: number } | undefined
+
+    for await (const chunk of this.provider.generateStream(messages as any, {
+      tools: toolDefs as any,
+      settings: { temperature: spec.temperature, maxTokens: spec.maxTokens, reasoningEffort: spec.reasoningEffort },
+    })) {
+      if (chunk.content) {
+        content += chunk.content
+        onStream(chunk.content)
+      }
+      if (chunk.finishReason) finishReason = chunk.finishReason as LLMResponse['finishReason']
+      if (chunk.toolCalls?.length) {
+        for (const tc of chunk.toolCalls) {
+          const existing = toolCalls.find(t => t.id === tc.id)
+          if (existing) {
+            existing.function.arguments += tc.function.arguments
+            if (tc.function.name) existing.function.name = tc.function.name
+          } else {
+            toolCalls.push(tc)
+          }
+        }
+      }
+    }
+
+    return { content: content || null, finishReason, toolCalls }
   }
 
   /**

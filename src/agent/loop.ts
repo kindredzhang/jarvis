@@ -308,6 +308,7 @@ export class AgentLoop {
       maxIterations: this.maxIterations,
       maxToolResultChars: this.maxToolResultChars,
       errorMessage: 'Sorry, I encountered an error calling the AI model.',
+      onStreamDelta: callbacks?.onStream,
     }
 
     // 4. 执行 ReAct 循环
