@@ -26,7 +26,10 @@ afterEach(() => {
 
 test('buildSystemPrompt with identity only', () => {
   const prompt = ctx.buildSystemPrompt({ identity: '你是一个助手' })
-  expect(prompt).toBe('你是一个助手')
+  expect(prompt).toContain('你是一个助手')
+  // 内置 memory skill 应自动加载
+  expect(prompt).toContain('Active Skills')
+  expect(prompt).toContain('memory')
 })
 
 test('buildSystemPrompt includes bootstrap files', () => {
