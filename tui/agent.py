@@ -4,7 +4,7 @@ Architecture: Python TUI talks to Bun API server via HTTP/SSE.
 Bun handles all agent logic; Python provides the terminal UX.
 """
 
-import os, json, asyncio, signal, sys, time
+import os, json, asyncio, signal, sys
 from pathlib import Path
 from contextlib import nullcontext
 
@@ -66,6 +66,7 @@ def _init_prompt_session() -> None:
         history=SafeFileHistory(str(HISTORY_FILE)),
         enable_open_in_editor=False,
         multiline=False,  # Enter submits (single line mode)
+        completer=WordCompleter(SLASH_COMMANDS, ignore_case=True, sentence=True),
     )
 
 
@@ -119,8 +120,8 @@ async def _send_message(base_url: str, message: str, session_id: str,
                         markdown: bool, thinking: ThinkingSpinner | None = None):
     """Send a message to the Bun API server, streaming response via SSE.
 
-    Returns the final non-streamed content if the response was not streamed,
-    otherwise None.
+    The API server sends streaming deltas for LLM responses, or a single
+    content event for slash-command results — both handled transparently.
     """
     renderer = StreamRenderer(render_markdown=markdown, show_spinner=False)
     payload = {
@@ -129,44 +130,39 @@ async def _send_message(base_url: str, message: str, session_id: str,
         "stream": True,
     }
 
-    non_streamed_content: str | None = None
-
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-        async with client.stream("POST", f"{base_url}/v1/chat/completions", json=payload) as resp:
-            if resp.status_code != 200:
-                text = await resp.atext()
-                console.print(f"\n[red]Error: HTTP {resp.status_code}: {text[:300]}[/red]")
-                await renderer.close()
-                return None
+        try:
+            async with client.stream("POST", f"{base_url}/v1/chat/completions", json=payload) as resp:
+                if resp.status_code != 200:
+                    text = await resp.atext()
+                    console.print(f"\n[red]Error: HTTP {resp.status_code}: {text[:300]}[/red]")
+                    await renderer.close()
+                    return
 
-            async for line in resp.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                if line == "data: [DONE]":
-                    await renderer.on_end(resuming=False)
-                    continue
-                try:
-                    chunk = json.loads(line[6:])
-                    choices = chunk.get("choices", [])
-                    if not choices:
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
                         continue
-                    delta = choices[0].get("delta", {})
-                    content = delta.get("content", "")
-                    finish = choices[0].get("finish_reason")
-                    if content:
-                        await renderer.on_delta(content)
-                    elif finish and finish != "tool_calls":
+                    if line == "data: [DONE]":
                         await renderer.on_end(resuming=False)
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    pass
+                        continue
+                    try:
+                        chunk = json.loads(line[6:])
+                        choices = chunk.get("choices", [])
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            await renderer.on_delta(content)
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        pass
 
+                if not renderer.streamed:
+                    await renderer.close()
+        except Exception as e:
             if not renderer.streamed:
-                await renderer.close()
-                non_streamed_content = None  # no non-streamed fallback on success
-
-    if non_streamed_content:
-        return non_streamed_content
-    return None
+                console.print(f"\n[red]Error: {e}[/red]")
+            await renderer.close()
 
 
 # ---------------------------------------------------------------------------

@@ -52,9 +52,17 @@ export function createAPIServer(config: APIConfig) {
             const streamReader = new ReadableStream({
               async start(controller: ReadableStreamDefaultController) {
                 try {
+                  let streamed = false
+                  let result: any = null
                   await withLock(sessionKey, async () => {
-                    await config.agentLoop.processDirect(text, { sessionKey, callbacks: { onStream(delta) { controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: delta }, index: 0 }] })}\n\n`)) }, onStreamEnd() { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close() } } })
+                    result = await config.agentLoop.processDirect(text, { sessionKey, callbacks: { onStream(delta: string) { streamed = true; controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: delta }, index: 0 }] })}\n\n`)) }, onStreamEnd() { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close() } } })
                   })
+                  if (!streamed) {
+                    const content = result?.content ?? ''
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content }, index: 0, finish_reason: 'stop' }] })}\n\n`))
+                    controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+                    controller.close()
+                  }
                 } catch { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close() } finally { clearTimeout(timer) }
               }
             })
