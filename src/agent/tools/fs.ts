@@ -24,6 +24,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, readdirSy
 import { join, relative, dirname, extname, basename } from 'node:path'
 import { Tool, defineParams } from './base'
 import { stripThinkTags } from '../../utils/helpers'
+import { extractDocumentText } from '../../utils/document'
 
 // ---- 共享工具基类 ----
 
@@ -135,7 +136,23 @@ export class ReadFileTool extends FsTool {
         text = readFileSync(fp, 'utf-8')
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
-        // 可能是二进制文件
+        // 文档文件提取文本
+      const ext$ = extname(fp).toLowerCase()
+      if ([".pdf", ".docx", ".xlsx", ".pptx"].includes(ext$)) {
+        const docText = extractDocumentText(fp)
+        if (docText) {
+          const maxChars = ReadFileTool.MAX_CHARS
+          return docText.length > maxChars
+            ? docText.slice(0, maxChars) + "\n\n(Document text truncated at ~128K chars)"
+            : docText
+        }
+        if (ext$ === ".pdf") {
+          return "Error: Cannot read PDF. Install pymupdf: pip install pymupdf"
+        }
+        return "Error: Cannot read " + ext$ + " file. Try textutil (macOS) or install python-docx/openpyxl/python-pptx"
+      }
+
+      // 可能是二进制文件
         if (msg.includes('invalid utf') || msg.includes('encoding')) {
           return `Error: Cannot read binary file ${path}. Only UTF-8 text is supported.`
         }
