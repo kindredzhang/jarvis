@@ -49,6 +49,7 @@ import {
   GlobTool,
   GrepTool,
   ExecTool,
+  SpawnTool,
 } from './tools'
 import { CommandRouter } from '../command/router'
 import { registerBuiltinCommands } from '../command/builtin'
@@ -159,6 +160,14 @@ export class AgentLoop {
       workspace: config.workspace,
       model: this.model,
       maxToolResultChars: this.maxToolResultChars,
+    })
+
+    // SpawnTool 依赖 subagents，需在之后注册
+    this.tools.register(new SpawnTool(this.subagents))
+
+    // 子代理结果回调
+    this.subagents.setOnResult((_taskId, result) => {
+      console.log(`[Subagent] result:\n${result.slice(0, 200)}...`)
     })
 
     // 注册 /dream 命令
