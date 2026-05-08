@@ -245,11 +245,6 @@ export class AgentLoop {
   ): Promise<OutboundMessage | null> {
     const sessionKey =
       sessionKeyOverride ?? msg.sessionKey
-    const preview =
-      msg.content.length > 80 ? msg.content.slice(0, 80) + '...' : msg.content
-    console.log(
-      `[AgentLoop] processing ${msg.channel}:${msg.senderId} → ${preview}`,
-    )
 
     // 检查是否为斜杠命令
     const raw = msg.content.trim()
@@ -336,13 +331,6 @@ export class AgentLoop {
       return null
     }
 
-    const preview2 =
-      finalContent.length > 120
-        ? finalContent.slice(0, 120) + '...'
-        : finalContent
-    console.log(
-      `[AgentLoop] response to ${msg.channel}:${msg.senderId}: ${preview2}`,
-    )
 
     return {
       channel: msg.channel,

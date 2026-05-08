@@ -20,7 +20,7 @@ import ora from 'ora'
 import { DeepSeekProvider } from './providers/deepseek'
 import { OpenAICompatProvider } from './providers/openai-compat'
 import { AnthropicProvider } from './providers/anthropic'
-import { AgentLoop, type StreamCallbacks } from './agent/loop'
+import { AgentLoop } from './agent/loop'
 import { loadConfig } from './config'
 
 // ---- Markdown 简易渲染 ----
@@ -193,45 +193,22 @@ async function runRepl(loop: AgentLoop) {
       console.log(chalk.dim('Goodbye!'))
       break
     }
-
     saveHistory(input)
     rl.pause()
 
     const spinner = ora({ text: 'thinking...', color: 'cyan' }).start()
 
     try {
-      // Streaming callbacks
-      let streamBuf = ''
-      const callbacks: StreamCallbacks = {
-        onStream(delta: string) {
-          streamBuf += delta
-          // 首段到达时停止 spinner 并开始输出
-          if (spinner.isSpinning) {
-            spinner.stop()
-            process.stdout.write('\n')
-          }
-          process.stdout.write(delta)
-        },
-      }
-
-      const response = await loop.processDirect(input, { callbacks })
-
-      if (spinner.isSpinning) {
-        spinner.stop()
-        if (response?.content) {
-          process.stdout.write('\n')
-          console.log(renderMarkdown(response.content))
-        }
-      }
-
-      // 如果通过 onStream 输出了内容，补换行
-      if (streamBuf) {
-        console.log()
+      const response = await loop.processDirect(input)
+      spinner.stop()
+      if (response?.content) {
+        console.log('\n' + renderMarkdown(response.content))
       }
     } catch (err) {
       spinner.fail(String(err))
     }
 
+    console.log()
     rl.prompt()
   }
 
