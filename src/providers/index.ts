@@ -1,3 +1,6 @@
 export { LLMProvider } from './base'
 export { DeepSeekProvider } from './deepseek'
+export { OpenAICompatProvider } from './openai-compat'
+export { AnthropicProvider } from './anthropic'
+export type { OpenAICompatConfig } from './openai-compat'
 export type { Message, ToolCallRequest, LLMResponse, LLMResponseChunk, GenerationSettings } from './types'
