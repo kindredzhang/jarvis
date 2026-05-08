@@ -11,7 +11,7 @@
  */
 
 import { createInterface } from 'node:readline/promises'
-import { stdin, stdout, exit, on, argv, cwd } from 'node:process'
+import { stdin, stdout, exit, argv, cwd } from 'node:process'
 import { existsSync, mkdirSync, readFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -175,7 +175,7 @@ async function runRepl(loop: AgentLoop) {
   const isExit = (s: string) => EXIT_COMMANDS.has(s.trim().toLowerCase())
 
   // Ctrl+C
-  on('SIGINT', () => {
+  process.on('SIGINT', () => {
     console.log(chalk.dim('\nGoodbye!'))
     exit(0)
   })
