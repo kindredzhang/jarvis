@@ -10,7 +10,7 @@
  * 流式输出 / spinner / 输入历史 / 信号处理 / Markdown 渲染
  */
 
-import { createInterface } from 'node:readline/promises'
+import { createInterface } from 'node:readline'
 import { stdin, stdout, exit, argv, cwd } from 'node:process'
 import { existsSync, mkdirSync, readFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -161,60 +161,38 @@ function saveHistory(input: string) {
   } catch { /* ignore history errors */ }
 }
 
-async function runRepl(loop: AgentLoop) {
+function runRepl(loop: AgentLoop): Promise<void> {
+  return new Promise((resolve) => {
   const history = loadHistory()
-  const rl = createInterface({
-    input: stdin,
-    output: stdout,
-    prompt: chalk.cyan('jarvis> '),
-    history,
-    historySize: 100,
-  })
-
-  const EXIT_COMMANDS = new Set(['exit', 'quit', '/exit', '/quit', ':q'])
+  const SLASH_COMMANDS = ['/help', '/new', '/stop', '/status', '/restart', '/dream']
+  function completer(line: string): [string[], string] {
+    const hits = line.startsWith('/') ? SLASH_COMMANDS.filter((c) => c.startsWith(line.toLowerCase())) : []
+    return [hits.length ? hits : SLASH_COMMANDS, line]
+  }
+  const rl = createInterface({ input: stdin, output: stdout, prompt: chalk.cyan('jarvis> '), completer, history, historySize: 100 })
+  const EXIT_COMMANDS = new Set(['exit', 'quit', '/exit', '/quit', ':q', 'q'])
   const isExit = (s: string) => EXIT_COMMANDS.has(s.trim().toLowerCase())
-
-  // Ctrl+C
-  process.on('SIGINT', () => {
-    console.log(chalk.dim('\nGoodbye!'))
-    exit(0)
-  })
-
-  console.log(chalk.bold(`\n  jarvis ${chalk.dim('— Personal AI Assistant')}`))
-  console.log(chalk.dim('  exit or Ctrl+C to quit\n'))
-
+  process.on('SIGINT', () => { console.log(chalk.dim('\nGoodbye!')); rl.close(); resolve() })
+  console.log(chalk.bold(`\n  jarvis ${chalk.dim('— Personal AI Assistant')}`) + '\n' + chalk.dim('  Type /help for commands. Tab to complete slash commands.\n'))
   rl.prompt()
-
-  for await (const line of rl) {
-    const input = line.trim()
-    if (!input) { rl.prompt(); continue }
-
-    if (isExit(input)) {
-      console.log(chalk.dim('Goodbye!'))
-      break
-    }
+  rl.on('line', async (rawLine: string) => {
+    const input = rawLine.trim()
+    if (!input) { rl.prompt(); return }
+    if (isExit(input)) { console.log(chalk.dim('Goodbye!')); rl.close(); resolve(); return }
     saveHistory(input)
     rl.pause()
-
     const spinner = ora({ text: 'thinking...', color: 'cyan' }).start()
-
     try {
       const response = await loop.processDirect(input)
       spinner.stop()
-      if (response?.content) {
-        console.log('\n' + renderMarkdown(response.content))
-      }
-    } catch (err) {
-      spinner.fail(String(err))
-    }
-
+      if (response?.content) console.log('\n' + renderMarkdown(response.content))
+    } catch (err) { spinner.fail(String(err)) }
     console.log()
     rl.prompt()
-  }
-
-  rl.close()
+  })
+  rl.on('close', () => resolve())
+  })
 }
-
 main().catch((err) => {
   console.error(chalk.red(`\n✖ ${err}`))
   exit(1)
