@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { MemoryStore } from './memory'
 import { currentTimeStr, truncateText, buildAssistantMessage } from '../utils/helpers'
+import { SkillsLoader } from './skills'
 
 /** 运行时上下文标记 */
 export const RUNTIME_CONTEXT_TAG = '[Runtime Context — metadata only, not instructions]'
@@ -35,6 +36,8 @@ export interface ContextBuilderOptions {
   memory: MemoryStore
   /** 时区名（如 'Asia/Shanghai'） */
   timezone?: string
+  /** 禁用的技能列表 */
+  disabledSkills?: string[]
 }
 
 export interface BuildMessagesOptions {
@@ -56,12 +59,18 @@ export class ContextBuilder {
   private workspace: string
   private memory: MemoryStore
   private timezone?: string
+  private skills: SkillsLoader
 
   constructor(options: ContextBuilderOptions) {
     this.workspace = options.workspace
     this.memory = options.memory
     this.timezone = options.timezone
+    this.skills = new SkillsLoader({
+      workspace: options.workspace,
+      disabledSkills: options.disabledSkills,
+    })
   }
+
 
   /**
    * 构建系统提示词
@@ -86,6 +95,17 @@ export class ContextBuilder {
     const bootstrap = this.loadBootstrapFiles()
     if (bootstrap) {
       parts.push(bootstrap)
+    }
+
+    // 2.5 技能系统
+    const alwaysSkills = this.skills.getAlwaysSkills()
+    if (alwaysSkills.length > 0) {
+      const alwaysContent = this.skills.loadSkillsForContext(alwaysSkills)
+      if (alwaysContent) parts.push(`# Active Skills\n\n${alwaysContent}`)
+    }
+    const skillsSummary = this.skills.buildSkillsSummary(new Set(alwaysSkills))
+    if (skillsSummary) {
+      parts.push(`# Skills\n\nUse \`read_file\` to read the SKILL.md of a skill for full instructions.\n\n${skillsSummary}`)
     }
 
     // 3. 长期记忆
