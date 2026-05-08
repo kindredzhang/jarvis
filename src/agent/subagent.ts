@@ -6,8 +6,7 @@
  * 运行独立的 ReAct 循环。
  *
  * ========= TODO: 与 nanobot 差异标注 =========
- * - 无 AgentHook 系统（当前用基本回调）
- * - 无 render_template（硬编码提示词）
+ * - 无 SkillsLoader / 技能摘要
  * - 无 SkillsLoader / 技能摘要
  * - 无 MessageBus 注入（通过 onResult 回调通知）
  * - 无 ContextBuilder.buildRuntimeContext 注入
@@ -28,6 +27,7 @@ import {
 } from './tools/fs'
 import { GlobTool, GrepTool } from './tools/search'
 import { ExecTool } from './tools/shell'
+import { TemplateEngine } from '../utils/template'
 
 // ---- 状态类型 ----
 
@@ -57,6 +57,7 @@ export class SubagentManager {
   private maxToolResultChars: number
   private runner: AgentRunner
   private onResult: SubagentResultCallback | null = null
+  private tpl = new TemplateEngine()
 
   /** 运行中的任务 */
   private runningTasks = new Map<string, Promise<void>>()
@@ -246,17 +247,11 @@ export class SubagentManager {
 
   private _buildSubagentPrompt(): string {
     const now = new Date().toISOString().slice(0, 16).replace('T', ' ')
-    return [
-      '# Subagent',
-      '',
-      `Time: ${now}`,
-      '',
-      'You are a subagent spawned by the main agent to complete a specific task.',
-      'Stay focused on the assigned task. Your final response will be reported back to the main agent.',
-      '',
-      '## Workspace',
-      this.workspace,
-    ].join('\n')
+    return this.tpl.render('agent/subagent_system.md', {
+      timeCtx: now,
+      workspace: this.workspace,
+      skillsSummary: '',
+    })
   }
 
   private _generateId(): string {

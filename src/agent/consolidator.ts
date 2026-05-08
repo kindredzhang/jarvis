@@ -17,6 +17,7 @@ import type { LLMProvider } from '../providers/base'
 import type { SessionMessageRecord } from './session'
 import { MemoryStore } from './memory'
 import { truncateText } from '../utils/helpers'
+import { TemplateEngine } from '../utils/template'
 
 // ---- 常量 ----
 
@@ -148,7 +149,7 @@ export class Consolidator {
         [
           {
             role: 'system',
-            content: CONSOLIDATOR_SYSTEM_PROMPT,
+            content: 'You are a memory consolidation system. Your job is to summarize a conversation chunk into a concise archive entry. Preserve key facts, decisions, user preferences, and task outcomes. Omit small talk, pleasantries, and redundant exchanges. The summary will be stored as an archive reference, not shown to the user directly. Write in 3-5 sentences.',
           },
           { role: 'user', content: truncated },
         ],
@@ -239,7 +240,7 @@ export class Dream {
     let analysis: string
     try {
       const response = await this.provider.generate([
-        { role: 'system', content: DREAM_PHASE1_PROMPT },
+        { role: 'system', content: 'You are a memory management system. Analyze the conversation history and current memory files. Your task: identify new information that should be recorded, outdated information to remove, and produce a complete new MEMORY.md or output NO_CHANGES.' },
         { role: 'user', content: phase1Prompt },
       ])
       analysis = response.content?.trim() ?? ''
@@ -307,15 +308,3 @@ export class Dream {
   }
 }
 
-// ---- 提示词 ----
-
-const CONSOLIDATOR_SYSTEM_PROMPT = `You are a memory consolidation system. Your job is to summarize a conversation chunk into a concise archive entry. Preserve key facts, decisions, user preferences, and task outcomes. Omit small talk, pleasantries, and redundant exchanges. The summary will be stored as an archive reference, not shown to the user directly. Write in 3-5 sentences.`
-
-const DREAM_PHASE1_PROMPT = `You are a memory management system. Analyze the conversation history and current memory files. Your task:
-
-1. Identify new information in the conversation history that should be recorded in MEMORY.md (long-term facts, user preferences, important decisions).
-2. Identify information in MEMORY.md that is outdated or contradicted by the new conversation.
-3. If changes are needed, output a complete new MEMORY.md wrapped in a ~~~markdown code block.
-4. If no changes are needed, output "NO_CHANGES".
-
-Focus on durable facts, not transient topics. Keep the writing concise and informative.`
