@@ -34,3 +34,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 __pycache__/
 .jarvis-server.pid
+tui/jarvis_tui.egg-info/
+tui/.venv/
