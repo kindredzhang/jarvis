@@ -53,6 +53,7 @@ import {
 import { CommandRouter } from '../command/router'
 import { registerBuiltinCommands } from '../command/builtin'
 import { Consolidator, Dream } from './consolidator'
+import { SubagentManager } from './subagent'
 
 // ---- 配置类型 ----
 
@@ -111,6 +112,8 @@ export class AgentLoop {
   readonly commands: CommandRouter
   readonly consolidator: Consolidator
   readonly dream: Dream
+  readonly subagents: SubagentManager
+
 
   private _running = false
   private _lastUsage: Record<string, number> = {}
@@ -149,6 +152,13 @@ export class AgentLoop {
       store: this.memory,
       provider: config.provider,
       model: this.model,
+    })
+
+    this.subagents = new SubagentManager({
+      provider: config.provider,
+      workspace: config.workspace,
+      model: this.model,
+      maxToolResultChars: this.maxToolResultChars,
     })
 
     // 注册 /dream 命令
