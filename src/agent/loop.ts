@@ -50,6 +50,8 @@ import {
   GrepTool,
   ExecTool,
 } from './tools'
+import { CommandRouter } from '../command/router'
+import { registerBuiltinCommands } from '../command/builtin'
 
 // ---- 配置类型 ----
 
@@ -104,6 +106,7 @@ export class AgentLoop {
   readonly sessions: SessionStore
   readonly tools: ToolRegistry
   readonly runner: AgentRunner
+  readonly commands: CommandRouter
 
   private _running = false
   private _lastUsage: Record<string, number> = {}
@@ -119,6 +122,11 @@ export class AgentLoop {
     this.sessions = new SessionStore(config.workspace)
     this.tools = new ToolRegistry()
     this._registerDefaultTools()
+    this.commands = new CommandRouter()
+    registerBuiltinCommands(
+      (cmd, handler) => this.commands.priorityCmd(cmd, handler),
+      (cmd, handler) => this.commands.exactCmd(cmd, handler),
+    )
     this.runner = new AgentRunner(config.provider)
 
     this.context = new ContextBuilder({
@@ -190,6 +198,33 @@ export class AgentLoop {
     console.log(
       `[AgentLoop] processing ${msg.channel}:${msg.senderId} → ${preview}`,
     )
+
+    // 检查是否为斜杠命令
+    const raw = msg.content.trim()
+    if (this.commands.isPriority(raw)) {
+      const priorityCtx = {
+        raw,
+        args: '',
+        sessionKey,
+        channel: msg.channel,
+        chatId: msg.chatId,
+        metadata: { ...(msg.metadata ?? {}) },
+      }
+      const priorityResult = await this.commands.dispatchPriority(priorityCtx)
+      if (priorityResult) return priorityResult
+    }
+    if (this.commands.isDispatchableCommand(raw)) {
+      const dispatchCtx = {
+        raw,
+        args: '',
+        sessionKey,
+        channel: msg.channel,
+        chatId: msg.chatId,
+        metadata: { ...(msg.metadata ?? {}) },
+      }
+      const cmdResult = await this.commands.dispatch(dispatchCtx)
+      if (cmdResult) return cmdResult
+    }
 
     // 1. 获取/创建会话历史
     const history = this.sessions.getHistory(sessionKey)
