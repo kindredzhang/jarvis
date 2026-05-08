@@ -3,6 +3,9 @@
  */
 import type { OutboundMessage } from '../bus'
 import type { CommandContext } from './router'
+import { setRestartNoticeToEnv } from '../utils/restart'
+import chalk from 'chalk'
+import { SkillsLoader } from '../agent/skills'
 
 // ---- /help ----
 
@@ -12,15 +15,19 @@ async function cmdHelp(ctx: CommandContext): Promise<OutboundMessage> {
 
 function buildHelpText(): string {
   return [
-    'jarvis commands:',
-    '/help — Show this help',
-    '/new — Start a new conversation (clears history)',
-    '/stop — Stop running tasks',
-    '/status — Show session stats',
-    '/dream — Trigger memory consolidation',
-    '/dream-log — Show latest Dream changes',
-    '/dream-restore <sha> — Restore memory to previous version',
-    '/restart — Restart the agent process',
+    '═ jarvis commands ════════════════════════════',
+    '',
+    chalk.bold('/help') + '        Show this help',
+    chalk.bold('/new') + '         Start a new conversation (clears history)',
+    chalk.bold('/stop') + '        Cancel all active subagent tasks',
+    chalk.bold('/status') + '      Show session stats, message count, git info',
+    chalk.bold('/dream') + '       Trigger memory consolidation (Dream)',
+    chalk.bold('/dream-log') + '   Show latest Dream commit changes',
+    chalk.bold('/dream-restore') + ' <sha>  Restore memory to a previous version',
+    chalk.bold('/skills') + '       List available skills with descriptions',
+    chalk.bold('/restart') + '     Restart the agent process',
+    '',
+    'Tip: Type / + Tab to autocomplete commands.',
   ].join('\n')
 }
 
@@ -37,8 +44,12 @@ async function cmdStop(ctx: CommandContext): Promise<OutboundMessage> {
 
 // ---- /restart ----
 
-async function cmdRestart(_ctx: CommandContext): Promise<OutboundMessage> {
-  // TODO: os.execv equivalent - restart via process exit
+async function cmdRestart(ctx: CommandContext): Promise<OutboundMessage> {
+  setRestartNoticeToEnv(ctx.channel, ctx.chatId)
+  // Spawn replacement process and exit current
+  const execPath = process.argv[0] ?? process.execPath ?? 'bun'
+  const { spawnSync } = await import('node:child_process')
+  spawnSync(execPath, process.argv.slice(1), { stdio: 'inherit' })
   process.exit(0)
 }
 
@@ -123,6 +134,46 @@ async function cmdDreamRestore(ctx: CommandContext): Promise<OutboundMessage> {
   return { channel: ctx.channel, chatId: ctx.chatId, content: `Could not restore \`${args}\`.`, metadata: { ...ctx.metadata }, media: [], buttons: [] }
 }
 
+// ---- /skills ----
+
+async function cmdSkills(ctx: CommandContext): Promise<OutboundMessage> {
+  const loop = ctx.loop
+  if (!loop?.workspace) {
+    return { channel: ctx.channel, chatId: ctx.chatId, content: 'Skills not available.', metadata: { ...ctx.metadata, render_as: 'text' }, media: [], buttons: [] }
+  }
+  const skillsLoader = new SkillsLoader({ workspace: loop.workspace })
+  const skills = skillsLoader.listSkills(false)
+
+  if (skills.length === 0) {
+    return { channel: ctx.channel, chatId: ctx.chatId, content: 'No skills found.', metadata: { ...ctx.metadata, render_as: 'text' }, media: [], buttons: [] }
+  }
+
+  const workspaceSkills = skills.filter((s) => s.source === 'workspace')
+  const builtinSkills = skills.filter((s) => s.source === 'builtin')
+
+  const lines: string[] = [`${chalk.bold('/skills')}    List available skills (${skills.length} total)\n`]
+
+  if (workspaceSkills.length > 0) {
+    lines.push(chalk.underline('Workspace skills:'))
+    for (const s of workspaceSkills) {
+      const desc = skillsLoader.getSkillMetadata(s.name)?.description ?? ''
+      lines.push(`  ${chalk.cyan(s.name)}  ${chalk.dim(desc)}`)
+    }
+    lines.push('')
+  }
+
+  if (builtinSkills.length > 0) {
+    lines.push(chalk.underline('Builtin skills:'))
+    for (const s of builtinSkills) {
+      const desc = skillsLoader.getSkillMetadata(s.name)?.description ?? ''
+      lines.push(`  ${chalk.cyan(s.name)}  ${chalk.dim(desc)}`)
+    }
+    lines.push('')
+  }
+
+  return { channel: ctx.channel, chatId: ctx.chatId, content: lines.join('\n'), metadata: { ...ctx.metadata, render_as: 'text' }, media: [], buttons: [] }
+}
+
 // ---- 注册 ----
 
 export function registerBuiltinCommands(
@@ -138,6 +189,7 @@ export function registerBuiltinCommands(
   exactCmd('/dream', cmdDream)
   exactCmd('/dream-log', cmdDreamLog)
   exactCmd('/dream-restore', cmdDreamRestore)
+  exactCmd('/skills', cmdSkills)
   // Prefix variants for args
   if (prefixCmd) {
     prefixCmd('/dream-log ', cmdDreamLog)

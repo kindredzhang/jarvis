@@ -63,6 +63,15 @@ export class CommandRouter {
     return this.prefix.some((p) => cmd.startsWith(p.pfx))
   }
 
+  /** 获取所有已注册命令名称列表（用于自动补全） */
+  getAllCommands(): string[] {
+    const cmds = new Set<string>()
+    for (const cmd of this.priority.keys()) cmds.add(cmd)
+    for (const cmd of this.exact.keys()) cmds.add(cmd)
+    for (const { pfx } of this.prefix) cmds.add(pfx.trimEnd())
+    return [...cmds].sort()
+  }
+
   /** 分发优先命令 */
   async dispatchPriority(ctx: CommandContext): Promise<OutboundMessage | null> {
     const handler = this.priority.get(ctx.raw.toLowerCase())

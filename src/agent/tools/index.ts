@@ -21,4 +21,7 @@ export type { MCPServerConfig } from './mcp'
 
 export { WebSearchTool, WebFetchTool } from './web'
 export { MessageTool } from './message'
+export { MyTool } from './self'
+export { CronTool } from './cron'
+export { NotebookEditTool } from './notebook'
 export { fileState } from './file_state'

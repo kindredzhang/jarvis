@@ -14,7 +14,8 @@
  */
 
 import type { LLMProvider } from '../providers/base'
-import type { SessionMessageRecord } from './session'
+import type { SessionMessageRecord, Session } from './session'
+import { SessionStore, retainRecentLegalSuffix } from './session'
 import { MemoryStore } from './memory'
 import { truncateText } from '../utils/helpers'
 import { TemplateEngine } from '../utils/template'
@@ -112,7 +113,7 @@ export class Consolidator {
 
       if (chunk.length <= 1) break
 
-      const summary = await this._archive(chunk)
+      const summary = await this.archive(chunk)
       if (summary) {
         lastSummary = summary
       }
@@ -138,9 +139,9 @@ export class Consolidator {
   }
 
   /**
-   * 将一批消息发送给 LLM 摘要
+   * 将一批消息发送给 LLM 摘要（公开方法，供 AutoCompact 调用）
    */
-  private async _archive(chunk: SessionMessageRecord[]): Promise<string | null> {
+  async archive(chunk: SessionMessageRecord[]): Promise<string | null> {
     try {
       const formatted = this._formatMessages(chunk)
       const truncated = truncateText(formatted, RAW_ARCHIVE_MAX_CHARS)
@@ -182,6 +183,190 @@ export class Consolidator {
         return `[${ts}] ${role}: ${content}`
       })
       .join('\n')
+  }
+}
+
+// ---- AutoCompact ----
+
+/**
+ * AutoCompact — 空闲会话主动压缩
+ *
+ * 1:1 从 nanobot/agent/autocompact.py 移植。
+ * 当会话 TTL 过期时，将未归档的前缀消息发送给 Consolidator 做摘要，
+ * 摘要存入 session.metadata._last_summary，消息列表替换为保留的后缀。
+ */
+export class AutoCompact {
+  private static RECENT_SUFFIX_MESSAGES = 8
+
+  private sessions: SessionStore
+  private consolidator: Consolidator
+  private ttlMinutes: number
+  private archiving: Set<string> = new Set()
+  private summaries: Map<string, { text: string; lastActive: Date }> = new Map()
+
+  constructor(
+    sessions: SessionStore,
+    consolidator: Consolidator,
+    sessionTtlMinutes = 0,
+  ) {
+    this.sessions = sessions
+    this.consolidator = consolidator
+    this.ttlMinutes = sessionTtlMinutes
+  }
+
+  /** 检查时间戳是否已超过 TTL */
+  private isExpired(ts: string | Date | null | undefined, now?: Date): boolean {
+    if (this.ttlMinutes <= 0 || !ts) return false
+    const date = typeof ts === 'string' ? new Date(ts) : ts
+    const n = now ?? new Date()
+    return (n.getTime() - date.getTime()) / 1000 >= this.ttlMinutes * 60
+  }
+
+  /** 格式化摘要文本 */
+  static formatSummary(text: string, lastActive: Date): string {
+    const idleMin = Math.floor(
+      (Date.now() - lastActive.getTime()) / 60000,
+    )
+    return `Inactive for ${idleMin} minutes.\nPrevious conversation summary: ${text}`
+  }
+
+  /** 将会话尾部拆分为: [需归档前缀, 保留后缀] */
+  private splitUnconsolidated(
+    session: Session,
+  ): [SessionMessageRecord[], SessionMessageRecord[]] {
+    const tail = session.messages.slice(session.last_consolidated)
+    if (tail.length === 0) return [[], []]
+
+    // 创建探针会话，调用 retainRecentLegalSuffix 确定保留后缀
+    const probe: Session = {
+      key: session.key,
+      messages: [...tail],
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+      metadata: {},
+      last_consolidated: 0,
+    }
+    retainRecentLegalSuffix(probe, AutoCompact.RECENT_SUFFIX_MESSAGES)
+    const kept = probe.messages
+    const cut = tail.length - kept.length
+    return [tail.slice(0, cut), kept]
+  }
+
+  /**
+   * 检查过期会话并调度后台归档
+   * @param scheduleBackground 回调，接收一个 Promise，由调用方负责调度执行
+   * @param activeSessionKeys 活跃会话键集合（跳过正在处理中的会话）
+   */
+  checkExpired(
+    scheduleBackground: (task: Promise<void>) => void,
+    activeSessionKeys: Set<string> | string[] = [],
+  ): void {
+    const activeSet =
+      activeSessionKeys instanceof Set
+        ? activeSessionKeys
+        : new Set(activeSessionKeys)
+
+    const now = new Date()
+    for (const info of this.sessions.listSessions()) {
+      const key = info.key
+      if (!key || this.archiving.has(key)) continue
+      if (activeSet.has(key)) continue
+      if (this.isExpired(info.updated_at, now)) {
+        this.archiving.add(key)
+        scheduleBackground(this.archive(key))
+      }
+    }
+  }
+
+  /** 归档单个会话的过期前缀消息 */
+  private async archive(key: string): Promise<void> {
+    try {
+      this.sessions.invalidate(key)
+      const session = this.sessions.getOrCreate(key)
+      const [archiveMsgs, keptMsgs] = this.splitUnconsolidated(session)
+
+      if (archiveMsgs.length === 0 && keptMsgs.length === 0) {
+        session.updated_at = new Date().toISOString()
+        this.sessions.save(key)
+        return
+      }
+
+      const lastActive = new Date(session.updated_at)
+      let summary = ''
+      if (archiveMsgs.length > 0) {
+        summary = (await this.consolidator.archive(archiveMsgs)) ?? ''
+      }
+      if (summary && summary !== '(nothing)') {
+        this.summaries.set(key, { text: summary, lastActive })
+        session.metadata._last_summary = {
+          text: summary,
+          last_active: lastActive.toISOString(),
+        }
+      }
+      session.messages = keptMsgs
+      session.last_consolidated = 0
+      session.updated_at = new Date().toISOString()
+      this.sessions.save(key)
+
+      if (archiveMsgs.length > 0) {
+        console.info(
+          `Auto-compact: archived ${key} (archived=${archiveMsgs.length}, ` +
+          `kept=${keptMsgs.length}, summary=${!!summary})`,
+        )
+      }
+    } catch (err) {
+      console.error(`Auto-compact: failed for ${key}:`, err)
+    } finally {
+      this.archiving.delete(key)
+    }
+  }
+
+  /**
+   * 在处理消息前准备会话：弹出待处理的摘要。
+   * @returns [session, summaryText | null]
+   */
+  prepareSession(
+    session: Session,
+    key: string,
+  ): { session: Session; summary: string | null } {
+    if (this.archiving.has(key) || this.isExpired(session.updated_at)) {
+      console.info(
+        `Auto-compact: reloading session ${key} (archiving=${this.archiving.has(key)})`,
+      )
+      session = this.sessions.getOrCreate(key)
+    }
+
+    // 热路径：从内存字典获取摘要（进程未重启）
+    const entry = this.summaries.get(key)
+    if (entry) {
+      this.summaries.delete(key)
+      session.metadata._last_summary = undefined
+      delete session.metadata._last_summary
+      return {
+        session,
+        summary: AutoCompact.formatSummary(entry.text, entry.lastActive),
+      }
+    }
+
+    // 冷路径：从磁盘元数据恢复摘要
+    if (session.metadata._last_summary) {
+      const meta = session.metadata._last_summary as {
+        text: string
+        last_active: string
+      }
+      session.metadata._last_summary = undefined
+      delete session.metadata._last_summary
+      this.sessions.save(key)
+      return {
+        session,
+        summary: AutoCompact.formatSummary(
+          meta.text,
+          new Date(meta.last_active),
+        ),
+      }
+    }
+
+    return { session, summary: null }
   }
 }
 

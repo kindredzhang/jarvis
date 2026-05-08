@@ -1,91 +1,15 @@
-#!/bin/bash
-# jarvis launcher — starts Bun API server + Python TUI
-# Usage: ./bin/jarvis [agent|gateway|serve|onboard|status|clean|test]
+#!/usr/bin/env bun
+/**
+ * jarvis CLI entry point for global `npm install -g` installation.
+ *
+ * This file is the "bin" target in package.json. When installed globally
+ * via `npm install -g`, the `jarvis` command invokes this script, which
+ * delegates to the TypeScript CLI entry point.
+ */
 
-set -e
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PID_FILE="$ROOT/.jarvis-server.pid"
-API_URL="${JARVIS_API_URL:-http://localhost:8000}"
-
-DIM='\033[0;2m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-is_server_running() {
-    bun --silent -e "const r=await fetch('${API_URL}/health');process.exit(r.ok?0:1)" 2>/dev/null
-}
-
-start_server() {
-    if is_server_running; then return 0; fi
-    echo -e "${DIM}Starting API server on $API_URL...${NC}"
-    cd "$ROOT"
-    bun run src/cli.ts serve --port "${API_URL##*:}" &
-    SERVER_PID=$!
-    echo "$SERVER_PID" > "$PID_FILE"
-
-    for i in $(seq 1 30); do
-        sleep 0.3
-        if is_server_running; then
-            echo -e "${GREEN}✓${NC} Server ready"
-            return 0
-        fi
-    done
-    echo -e "${RED}✗ Server failed to start${NC}"
-    return 1
-}
-
-stop_server() {
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat "$PID_FILE" 2>/dev/null)
-        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
-            kill "$PID" 2>/dev/null
-            rm -f "$PID_FILE"
-            echo -e "${DIM}Server stopped${NC}"
-        fi
-    fi
-}
-
-# ──── Main ────
-
-CMD="${1:-agent}"
-shift 2>/dev/null || true
-
-case "$CMD" in
-    agent|gateway|onboard)
-        start_server
-        trap 'stop_server' EXIT
-        cd "$ROOT/tui"
-        exec uv run jarvis "$CMD" "$@"
-        ;;
-    status)
-        cd "$ROOT/tui"
-        exec uv run jarvis status
-        ;;
-    serve)
-        cd "$ROOT"
-        exec bun run src/cli.ts serve "$@"
-        ;;
-    test)
-        cd "$ROOT"
-        exec bun test "$@"
-        ;;
-    install)
-        echo -e "${GREEN}Installing jarvis...${NC}"
-        echo -e "${DIM}  → bun dependencies${NC}"
-        cd "$ROOT" && bun install
-        echo -e "${DIM}  → python dependencies${NC}"
-        cd "$ROOT/tui" && uv sync --quiet
-        echo -e "${GREEN}✓ jarvis installed${NC}"
-        echo -e "${DIM}  Run: ./bin/jarvis agent${NC}"
-        ;;
-    clean)
-        rm -f "$ROOT/.jarvis-server.pid"
-        echo -e "${DIM}Cleaned${NC}"
-        ;;
-    *)
-        echo "Usage: jarvis [agent|gateway|serve|onboard|status|install|clean|test]"
-        exit 1
-        ;;
-esac
+const __dirname = dirname(fileURLToPath(import.meta.url))
+process.argv.splice(1, 1, join(__dirname, '..', 'src', 'cli.ts'))
+await import(join(__dirname, '..', 'src', 'cli.ts'))

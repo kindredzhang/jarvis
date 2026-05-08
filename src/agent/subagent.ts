@@ -18,6 +18,7 @@
 
 import { AgentRunner, type AgentRunSpec, type AgentRunResult } from './runner'
 import { AgentLoop } from './loop'
+import { type ToolEvent } from './hook'
 import { ToolRegistry } from './tools/registry'
 import {
   ReadFileTool,
@@ -38,6 +39,9 @@ export interface SubagentStatus {
   startedAt: number
   phase: 'initializing' | 'running' | 'done' | 'error'
   iteration: number
+  toolEvents: ToolEvent[]
+  usage: Record<string, number>
+  stopReason: string | null
   error: string | null
 }
 
@@ -109,6 +113,9 @@ export class SubagentManager {
       startedAt: Date.now(),
       phase: 'initializing',
       iteration: 0,
+      toolEvents: [],
+      usage: {},
+      stopReason: null,
       error: null,
     }
     this.taskStatuses.set(taskId, status)
@@ -190,9 +197,17 @@ export class SubagentManager {
 
       const result = await this.runner.run(spec)
       status.iteration = result.toolsUsed.length
+      status.usage = result.usage ?? {}
+      status.stopReason = result.stopReason
       status.phase = 'done'
 
-      if (result.stopReason === 'tool_error' || result.stopReason === 'error') {
+      if (result.stopReason === 'tool_error') {
+        status.toolEvents = [...(result.toolEvents ?? [])]
+        const errMsg = result.error ?? 'Subagent execution failed.'
+        await this._announceResult(taskId, label, task, errMsg, 'error')
+        return
+      }
+      if (result.stopReason === 'error') {
         const errMsg = result.error ?? 'Subagent execution failed.'
         await this._announceResult(taskId, label, task, errMsg, 'error')
         return

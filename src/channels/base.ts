@@ -27,7 +27,7 @@ export interface ChannelConfig {
   /** 允许的发送者列表（["*"] 表示全部允许） */
   allowFrom?: string[]
   /** 群组策略：open（全部回复）/ mention（仅 @ 时回复） */
-  groupPolicy?: 'open' | 'mention'
+  groupPolicy?: 'open' | 'mention' | 'allowlist'
   /** 流式输出支持 */
   streaming?: boolean
 }

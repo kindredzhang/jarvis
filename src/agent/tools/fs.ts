@@ -71,7 +71,7 @@ function isUnder(path: string, directory: string): boolean {
 }
 
 /** 共享基类 */
-abstract class FsTool extends Tool {
+export abstract class FsTool extends Tool {
   protected workspace: string | undefined
   protected allowedDir: string | null = null
   protected extraAllowedDirs: string[] | null = null

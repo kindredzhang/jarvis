@@ -130,15 +130,10 @@ export async function cmdAgent(opts: {
     provider,
     workspace: ws,
     model,
+    maxIterations: config.agents?.defaults?.maxToolIterations,
     timezone: getTimezone(config),
   })
 
-  const cliProgress = (content: string, toolHint = false) => {
-    const ch = (config as any).channels
-    if (ch && toolHint && !ch.sendToolHints) return
-    if (ch && !toolHint && !ch.sendProgress) return
-    console.error(`  ${chalk.dim(`↳ ${content}`)}`)
-  }
 
   if (opts.message) {
     // Single message mode
@@ -150,7 +145,7 @@ export async function cmdAgent(opts: {
         onStream: async (delta: string) => renderer.onDelta(delta),
         onStreamEnd: async (resuming: boolean) => renderer.onEnd({ resuming }),
         onProgress: async (content: string, extra?: { toolHint?: boolean }) => {
-          cliProgress(content, extra?.toolHint)
+          renderer.onProgress(content, { toolHint: extra?.toolHint })
         },
       },
     })
@@ -173,6 +168,7 @@ export async function cmdAgent(opts: {
 
   // Interactive mode
   console.log(`${chalk.cyan('jarvis')} Interactive mode ${chalk.blue(`(${model})`)} — type ${chalk.bold('exit')} or Ctrl+C to quit`)
+  console.log(`  ${chalk.dim('Commands: /help /new /stop /status /dream /dream-log /dream-restore /skills /restart')}`)
   console.log()
 
   const [cliChannel, cliChatId] = sessionId.includes(':')
@@ -197,7 +193,8 @@ export async function cmdAgent(opts: {
   mkdirSync(dirname(historyPath), { recursive: true })
   const history = new FileHistory(historyPath)
 
-  // Interactive readline
+  // Interactive readline with slash-command autocomplete
+  const cliCommands = loop.commands.getAllCommands().map((c) => c.toLowerCase())
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -205,6 +202,12 @@ export async function cmdAgent(opts: {
     historySize: 1000,
     prompt: chalk.blue('You: '),
     terminal: process.stdin.isTTY,
+    completer: (line: string) => {
+      const trimmed = line.trimStart()
+      if (!trimmed.startsWith('/')) return [[], line]
+      const hits = cliCommands.filter((c) => c.startsWith(trimmed.toLowerCase()))
+      return [hits, trimmed]
+    },
   })
 
   rl.on('close', () => {
@@ -232,7 +235,7 @@ export async function cmdAgent(opts: {
         onStream: async (delta: string) => renderer.onDelta(delta),
         onStreamEnd: async (resuming: boolean) => renderer.onEnd({ resuming }),
         onProgress: async (content: string, extra?: { toolHint?: boolean }) => {
-          cliProgress(content, extra?.toolHint)
+          renderer.onProgress(content, { toolHint: extra?.toolHint })
         },
       },
     })
@@ -276,6 +279,7 @@ export async function cmdServe(opts: {
     provider,
     workspace: ws,
     model,
+    maxIterations: config.agents?.defaults?.maxToolIterations,
     timezone: getTimezone(config),
   })
 
@@ -334,6 +338,7 @@ export async function cmdGateway(opts: {
     provider,
     workspace: ws,
     model,
+    maxIterations: config.agents?.defaults?.maxToolIterations,
     timezone: getTimezone(config),
   })
 

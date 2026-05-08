@@ -32,7 +32,6 @@
  */
 
 import type { LLMProvider } from '../providers/base'
-import type { Message } from '../providers/types'
 import { InboundMessage, type OutboundMessage } from '../bus'
 import { ToolRegistry } from './tools/registry'
 import { AgentRunner, type AgentRunSpec } from './runner'
@@ -40,7 +39,8 @@ import { ContextBuilder } from './context'
 import { RUNTIME_CONTEXT_TAG, RUNTIME_CONTEXT_END } from './context'
 import { MemoryStore } from './memory'
 import { SessionStore, type SessionMessageRecord } from './session'
-import { truncateText, stripThinkTags } from '../utils/helpers'
+import { stripThinkTags, truncateText } from '../utils/helpers'
+import { AgentHook, type AgentHookContext } from './hook'
 import {
   ReadFileTool,
   WriteFileTool,
@@ -53,10 +53,14 @@ import {
   WebSearchTool,
   WebFetchTool,
   MessageTool,
+  CronTool,
 } from './tools'
+import { NotebookEditTool } from './tools/notebook'
+import { MyTool } from './tools/self'
 import { CommandRouter } from '../command/router'
+import type { CronService } from '../cron/service'
 import { registerBuiltinCommands } from '../command/builtin'
-import { Consolidator, Dream } from './consolidator'
+import { AutoCompact, Consolidator, Dream } from './consolidator'
 import { SubagentManager } from './subagent'
 
 // ---- 配置类型 ----
@@ -70,7 +74,7 @@ export interface AgentLoopConfig {
   workspace: string
   /** 模型名称（默认取 provider 的默认模型） */
   model?: string
-  /** 最大 ReAct 迭代次数 */
+  /** 最大 ReAct 迭代次数（默认 200） */
   maxIterations?: number
   /** 上下文窗口 token 上限（用于裁剪） */
   contextWindowTokens?: number
@@ -84,6 +88,10 @@ export interface AgentLoopConfig {
   disabledSkills?: string[]
   /** 最大历史条目数 */
   maxHistoryEntries?: number
+  /** 会话 TTL（分钟），超时后触发 AutoCompact 后台归档。0 禁用 */
+  sessionTtlMinutes?: number
+  /** Cron 服务 */
+  cronService?: CronService
 }
 
 /** 流式回调 */
@@ -95,6 +103,48 @@ export interface StreamCallbacks {
     opts?: { toolHint?: boolean; toolEvents?: Record<string, unknown>[] },
   ) => Promise<void> | void
   onRetryWait?: (content: string) => Promise<void> | void
+}
+
+// ---- LoopHook（AgentHook 实现，用于进度回调） ----
+
+/**
+ * AgentLoop 内置的生命周期钩子。
+ *
+ * 在 beforeExecuteTools 中格式化工具调用为可读提示词，
+ * 并通过 onProgress 回调发送给调用方（CLI/channel）。
+ */
+class LoopHook extends AgentHook {
+  private _onProgress?: StreamCallbacks['onProgress']
+  private _onStream?: StreamCallbacks['onStream']
+
+  constructor(callbacks?: StreamCallbacks) {
+    super(true)
+    this._onProgress = callbacks?.onProgress
+    this._onStream = callbacks?.onStream
+  }
+
+  override wantsStreaming(): boolean {
+    return this._onStream != null
+  }
+
+  override async beforeExecuteTools(context: AgentHookContext): Promise<void> {
+    if (this._onProgress && context.toolCalls.length > 0) {
+      const hints = context.toolCalls.map((tc) => formatToolHint(tc))
+      const hint = hints.join(', ')
+      await this._onProgress(hint, { toolHint: true })
+    }
+  }
+}
+
+/** 将工具调用格式化为可读提示。 */
+function formatToolHint(tc: { function: { name: string; arguments: string } }): string {
+  const name = tc.function.name
+  let args: Record<string, unknown> = {}
+  try { args = JSON.parse(tc.function.arguments) } catch { /* ignore */ }
+  const keys = Object.keys(args)
+  if (keys.length === 0) return name
+  const firstVal = String(args[keys[0]!]).slice(0, 60)
+  return `${name}(${firstVal})`
 }
 
 // ---- AgentLoop 实现 ----
@@ -115,20 +165,29 @@ export class AgentLoop {
   readonly runner: AgentRunner
   readonly commands: CommandRouter
   readonly consolidator: Consolidator
+  readonly autoCompact: AutoCompact
   readonly dream: Dream
   readonly subagents: SubagentManager
+  readonly cronService?: CronService
 
+  providerRetryMode: string
+  webConfig: Record<string, unknown>
+  execConfig: Record<string, unknown>
+  _runtime_vars: Record<string, unknown> = {}
+  _current_iteration = 0
 
-  private _running = false
-  private _lastUsage: Record<string, number> = {}
+  _lastUsage: Record<string, number> = {}
 
   constructor(config: AgentLoopConfig) {
     this.provider = config.provider
     this.workspace = config.workspace
     this.model = config.model ?? config.provider.model
-    this.maxIterations = config.maxIterations ?? 15
+    this.maxIterations = config.maxIterations ?? 200
     this.maxToolResultChars = config.maxToolResultChars ?? 60_000
     this.contextWindowTokens = config.contextWindowTokens ?? 128_000
+    this.providerRetryMode = config.providerRetryMode ?? 'standard'
+    this.webConfig = {}
+    this.execConfig = {}
 
     this.memory = new MemoryStore(config.workspace, config.maxHistoryEntries ?? 1000)
     this.sessions = new SessionStore(config.workspace)
@@ -153,6 +212,11 @@ export class AgentLoop {
       model: this.model,
       contextWindowTokens: this.contextWindowTokens,
     })
+    this.autoCompact = new AutoCompact(
+      this.sessions,
+      this.consolidator,
+      config.sessionTtlMinutes ?? 0,
+    )
     this.dream = new Dream({
       store: this.memory,
       provider: config.provider,
@@ -166,7 +230,15 @@ export class AgentLoop {
       maxToolResultChars: this.maxToolResultChars,
     })
 
+    this.cronService = config.cronService
+
     // SpawnTool 依赖 subagents，需在之后注册
+    this.tools.register(new SpawnTool(this.subagents))
+
+    // CronTool
+    if (this.cronService) {
+      this.tools.register(new CronTool(this.cronService, config.timezone ?? 'UTC'))
+    }
     this.tools.register(new SpawnTool(this.subagents))
 
     // 子代理结果回调
@@ -204,6 +276,16 @@ export class AgentLoop {
     this.tools.register(new WebSearchTool())
     this.tools.register(new WebFetchTool())
     this.tools.register(new MessageTool())
+    this.tools.register(new NotebookEditTool(this.workspace))
+    this.tools.register(new MyTool(this))
+  }
+
+  /** 设置 MyTool 的通道上下文（由 hook 在工具执行前调用） */
+  _set_tool_context(channel: string, chatId: string): void {
+    const myTool = this.tools.get('my')
+    if (myTool instanceof MyTool) {
+      myTool.setContext(channel, chatId)
+    }
   }
 
   // ---- 公共 API ----
@@ -263,6 +345,7 @@ export class AgentLoop {
         channel: msg.channel,
         chatId: msg.chatId,
         metadata: { ...(msg.metadata ?? {}) },
+        loop: this,
       }
       const priorityResult = await this.commands.dispatchPriority(priorityCtx)
       if (priorityResult) return priorityResult
@@ -275,29 +358,36 @@ export class AgentLoop {
         channel: msg.channel,
         chatId: msg.chatId,
         metadata: { ...(msg.metadata ?? {}) },
+        loop: this,
       }
       const cmdResult = await this.commands.dispatch(dispatchCtx)
       if (cmdResult) return cmdResult
     }
 
-    // 1. 获取/创建会话历史
-    const history = this.sessions.getHistory(sessionKey)
+    // 1. 获取/创建会话
+    let session = this.sessions.getOrCreate(sessionKey)
 
-    // 1b. Consolidate 检查：如果历史消息超出 token 预算，先行归档
-    // history 会被 maybeConsolidate 原地修改
-    const didConsolidate = await this.consolidator.maybeConsolidate(history, () => {
+    // 1b. AutoCompact：准备会话，获取待处理摘要
+    const { session: preparedSession, summary: pendingSummary } =
+      this.autoCompact.prepareSession(session, sessionKey)
+    session = preparedSession
+
+    // 1c. Consolidate 检查：如果历史消息超出 token 预算，先行归档
+    const history = session.messages
+    await this.consolidator.maybeConsolidate(history, () => {
       this.sessions.save(sessionKey)
     })
 
-    // 1c. 复制历史用于上下文构建（consolidate 可能已修改 history 数组）
+    // 1d. 复制历史用于上下文构建（consolidate 可能已修改 history 数组）
     const historyForContext: Record<string, unknown>[] = history.map((m) => ({ ...m }))
 
-    // 2. 构建 LLM 消息列表
+    // 2. 构建 LLM 消息列表（含 AutoCompact 摘要）
     const initialMessages = this.context.buildMessages({
       history: historyForContext,
       currentMessage: msg.content,
       channel: msg.channel,
       chatId: msg.chatId,
+      sessionSummary: pendingSummary ?? undefined,
     })
 
     // 3. 构建 AgentRunSpec
@@ -309,6 +399,7 @@ export class AgentLoop {
       maxToolResultChars: this.maxToolResultChars,
       errorMessage: 'Sorry, I encountered an error calling the AI model.',
       onStreamDelta: callbacks?.onStream,
+      hook: new LoopHook(callbacks),
     }
 
     // 4. 执行 ReAct 循环

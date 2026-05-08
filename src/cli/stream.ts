@@ -46,6 +46,7 @@ export class ThinkingSpinner {
   private _active = false
   private _frameIndex = 0
   private _frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+  private _statusText = 'jarvis is thinking...'
 
   start(): void {
     if (!isTTY() || this._active) return
@@ -55,7 +56,7 @@ export class ThinkingSpinner {
       if (!this._active) return
       const f = this._frames[this._frameIndex % this._frames.length]
       this._frameIndex++
-      process.stdout.write(`\r${f} ${chalk.dim('jarvis is thinking...')}`)
+      process.stdout.write(`\r${f} ${chalk.dim(this._statusText)}`)
     }
 
     frame()
@@ -70,6 +71,15 @@ export class ThinkingSpinner {
       this._interval = null
     }
     process.stdout.write('\r\x1b[2K\r') // clear line, reset cursor
+  }
+
+  /** Update the status text shown next to the spinner. */
+  setStatus(text: string): void {
+    this._statusText = text
+    if (this._active) {
+      const f = this._frames[this._frameIndex % this._frames.length]
+      process.stdout.write(`\r${f} ${chalk.dim(text)}`)
+    }
   }
 
   /**
@@ -235,6 +245,20 @@ export class StreamRenderer {
   /** Stop spinner before user input to avoid display conflicts. */
   stopForInput(): void {
     this._spinner.stop()
+  }
+
+  /**
+   * Show tool progress or status updates during agent execution.
+   * Updates the spinner text for tool hints, pauses spinner for messages.
+   */
+  onProgress(content: string, opts?: { toolHint?: boolean }): void {
+    if (opts?.toolHint) {
+      this._spinner.setStatus(content)
+    } else {
+      const resume = this._spinner.pause()
+      process.stderr.write(`  ${chalk.dim(`↳ ${content}`)}\n`)
+      resume()
+    }
   }
 
   async close(): Promise<void> {

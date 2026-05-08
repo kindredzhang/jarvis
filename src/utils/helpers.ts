@@ -1,9 +1,28 @@
 /**
  * 通用辅助函数
+ *
+ * 包含从 nanobot/utils/runtime.py 和 nanobot/utils/helpers.py
+ * 1:1 移植的运行时工具函数。
  */
 
 import { mkdir } from 'node:fs/promises'
 import { readFileSync, writeFileSync } from 'node:fs'
+
+// ---- 从 nanobot/utils/runtime.py 移植的常量 ----
+
+/** 重复外部查找的最大次数（web_search / web_fetch） */
+export const MAX_REPEAT_EXTERNAL_LOOKUPS = 2
+
+export const EMPTY_FINAL_RESPONSE_MESSAGE =
+  "I completed the tool steps but couldn't produce a final answer. " +
+  'Please try again or narrow the task.'
+
+export const FINALIZATION_RETRY_PROMPT =
+  'Please provide your response to the user based on the conversation above.'
+
+export const LENGTH_RECOVERY_PROMPT =
+  'Output limit reached. Continue exactly where you left off ' +
+  '— no recap, no apology. Break remaining work into smaller steps if needed.'
 
 /** 确保目录存在 */
 export async function ensureDir(path: string): Promise<string> {
@@ -37,6 +56,30 @@ export function writeTextSync(path: string, content: string): void {
  * ========= TODO: 与 nanobot 差异标注 =========
  * nanobot 使用 strip_think，包含更多逻辑
  */
+/**
+ * Split content into chunks within maxLen, preferring line breaks.
+ * Port of nanobot/utils/helpers.py split_message.
+ */
+export function splitMessage(content: string, maxLen: number = 2000): string[] {
+  if (!content) return []
+  if (content.length <= maxLen) return [content]
+  const chunks: string[] = []
+  let remaining = content
+  while (remaining) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining)
+      break
+    }
+    const cut = remaining.slice(0, maxLen)
+    let pos = cut.lastIndexOf('\n')
+    if (pos <= 0) pos = cut.lastIndexOf(' ')
+    if (pos <= 0) pos = maxLen
+    chunks.push(remaining.slice(0, pos))
+    remaining = remaining.slice(pos).replace(/^\s+/, '')
+  }
+  return chunks
+}
+
 export function stripThinkTags(text: string): string {
   const THINK_CLOSE = "<" + "/think>"
   const re1 = new RegExp("<think[\\s\\S]*?" + THINK_CLOSE, "g")
@@ -106,4 +149,142 @@ export function buildAssistantMessage(
     msg.thinking_blocks = options.thinkingBlocks
   }
   return msg
+}
+
+// ---- 从 nanobot/utils/runtime.py 移植的函数 ----
+
+/** 空工具结果的简短标记 */
+export function emptyToolResultMessage(toolName: string): string {
+  return `(${toolName} completed with no output)`
+}
+
+/** 将语义为空的工具结果替换为简短标记 */
+export function ensureNonemptyToolResult(
+  toolName: string,
+  content: unknown,
+): unknown {
+  if (content === null || content === undefined) {
+    return emptyToolResultMessage(toolName)
+  }
+  if (typeof content === 'string' && !content.trim()) {
+    return emptyToolResultMessage(toolName)
+  }
+  if (Array.isArray(content)) {
+    if (content.length === 0) {
+      return emptyToolResultMessage(toolName)
+    }
+    const textPayload = stringifyTextBlocks(content)
+    if (textPayload !== null && !textPayload.trim()) {
+      return emptyToolResultMessage(toolName)
+    }
+  }
+  return content
+}
+
+/** content 是否为空或只有空白 */
+export function isBlankText(content: string | null | undefined): boolean {
+  return content == null || content.trim() === ''
+}
+
+/** 构建无工具调用的 finalization retry 消息 */
+export function buildFinalizationRetryMessage(): Record<string, string> {
+  return { role: 'user', content: FINALIZATION_RETRY_PROMPT }
+}
+
+/** 构建 output token limit 后的恢复提示消息 */
+export function buildLengthRecoveryMessage(): Record<string, string> {
+  return { role: 'user', content: LENGTH_RECOVERY_PROMPT }
+}
+
+/** 提取文本块列表中的纯文本 */
+export function stringifyTextBlocks(
+  content: Record<string, unknown>[],
+): string | null {
+  const parts: string[] = []
+  for (const block of content) {
+    if (typeof block !== 'object' || block === null) return null
+    if (block.type !== 'text') return null
+    const text = block.text
+    if (typeof text !== 'string') return null
+    parts.push(text)
+  }
+  return parts.join('\n')
+}
+
+/** 生成外部查找的稳定签名 */
+export function externalLookupSignature(
+  toolName: string,
+  args: Record<string, unknown>,
+): string | null {
+  if (toolName === 'web_fetch') {
+    const url = String(args.url ?? '').trim()
+    if (url) return `web_fetch:${url.toLowerCase()}`
+    return null
+  }
+  if (toolName === 'web_search') {
+    const query = String(args.query ?? args.search_term ?? '').trim()
+    if (query) return `web_search:${query.toLowerCase()}`
+    return null
+  }
+  return null
+}
+
+/** 重复外部查找拦截 */
+export function repeatedExternalLookupError(
+  toolName: string,
+  args: Record<string, unknown>,
+  seenCounts: Record<string, number>,
+): string | null {
+  const signature = externalLookupSignature(toolName, args)
+  if (signature === null) return null
+  const count = (seenCounts[signature] ?? 0) + 1
+  seenCounts[signature] = count
+  if (count <= MAX_REPEAT_EXTERNAL_LOOKUPS) return null
+  console.warn(
+    `Blocking repeated external lookup ${signature.slice(0, 160)} on attempt ${count}`,
+  )
+  return (
+    'Error: repeated external lookup blocked. ' +
+    'Use the results you already have to answer, or try a meaningfully different source.'
+  )
+}
+
+/** 找到第一个合法的消息起始位置（tool results 有匹配的 assistant calls） */
+export function findLegalMessageStart(
+  messages: Record<string, unknown>[],
+): number {
+  const declared = new Set<string>()
+  let start = 0
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]!
+    const role = msg.role as string
+    if (role === 'assistant') {
+      const tcs = msg.tool_calls as Record<string, unknown>[] | undefined
+      if (tcs) {
+        for (const tc of tcs) {
+          const id = tc.id as string | undefined
+          if (id) declared.add(id)
+        }
+      }
+    } else if (role === 'tool') {
+      const tid = msg.tool_call_id as string | undefined
+      if (tid && !declared.has(tid)) {
+        start = i + 1
+        declared.clear()
+        for (let j = start; j <= i; j++) {
+          const prev = messages[j]!
+          if (prev.role === 'assistant') {
+            const tcs = prev.tool_calls as Record<string, unknown>[] | undefined
+            if (tcs) {
+              for (const tc of tcs) {
+                const id = tc.id as string | undefined
+                if (id) declared.add(id)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return start
 }

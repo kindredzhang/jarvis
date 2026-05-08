@@ -1,124 +1,124 @@
 #!/usr/bin/env bun
 /**
- * jarvis core CLI — thin wrapper that delegates to Python TUI.
- * Run `jarvis` from the tui/ directory for the full experience.
+ * jarvis CLI — Commander.js entry point.
+ *
+ * Port of nanobot/cli/commands.py. Every command is implemented in
+ * src/cli/commands.ts and imported here for Commander registration.
  */
 
 import { Command } from 'commander'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { homedir } from 'node:os'
-import { DeepSeekProvider } from './providers/deepseek'
-import { AgentLoop } from './agent/loop'
-import { loadConfig } from './config'
-import { createAPIServer } from './api/server'
-import { CronService } from './cron/service'
-import { HeartbeatService } from './heartbeat/service'
-
-function makeProvider(config: any) {
-  return new DeepSeekProvider({ apiKey: config.apiKey, model: config.model, baseUrl: config.baseUrl })
-}
-
-function getWorkspace(config: any) {
-  const ws = config.workspace ?? join(homedir(), '.jarvis')
-  if (!existsSync(ws)) mkdirSync(ws, { recursive: true })
-  return ws
-}
+import {
+  cmdAgent,
+  cmdServe,
+  cmdGateway,
+  cmdOnboard,
+  cmdStatus,
+  cmdChannelsStatus,
+  cmdChannelsLogin,
+  cmdPluginsList,
+  cmdProviderLogin,
+} from './cli/commands'
 
 const program = new Command()
-program.name('jarvis').description('Personal AI Assistant (core)')
-program.option('-m, --message <msg>', 'Single message mode (calls agent)')
+
+program
+  .name('jarvis')
+  .description('jarvis - Personal AI Assistant')
+  .version('0.1.0')
 
 // ──── agent ────
-async function cmdAgent(opts: any) {
-  const config = loadConfig(opts.config)
-  if (!config.apiKey) { console.error('Error: DEEPSEEK_API_KEY required'); return }
-  const provider = makeProvider(config)
-  const loop = new AgentLoop({ provider, workspace: getWorkspace(config), model: config.model, timezone: config.timezone })
-  if (typeof opts.message === 'string') {
-    const r = await loop.processDirect(opts.message)
-    if (r?.content) console.log(r.content)
-    return
-  }
-  // Interactive: use basic readline (Python TUI replaces this)
-  const { createInterface } = await import('node:readline')
-  const { stdin, stdout } = await import('node:process')
-  const rl = createInterface({ input: stdin, output: stdout })
-  console.log('jarvis> (use TUI for full experience: cd tui && uv run jarvis agent)')
-  rl.on('line', async (line: string) => {
-    const input = line.trim()
-    if (!input) { rl.prompt(); return }
-    if (['exit','quit',':q'].includes(input.toLowerCase())) { rl.close(); return }
-    const r = await loop.processDirect(input)
-    if (r?.content) console.log(r.content)
-    rl.prompt()
-  })
-  rl.prompt()
-}
-
-// ──── gateway ────
-async function cmdGateway(opts: any) {
-  const config = loadConfig(opts.config)
-  if (!config.apiKey) { console.error('Error: DEEPSEEK_API_KEY required'); return }
-  const workspace = getWorkspace(config)
-  const provider = makeProvider(config)
-  const port = parseInt(opts.port) || 18790
-
-  console.log(`Starting jarvis gateway on port ${port}...`)
-  const loop = new AgentLoop({ provider, workspace, model: config.model, timezone: config.timezone })
-  const cron = new CronService(join(workspace, 'cron', 'jobs.json'))
-  const hb = new HeartbeatService({ workspace, provider, model: config.model ?? 'deepseek-chat' })
-
-  const server = Bun.serve({ port, fetch() { return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } }) } })
-  cron.start()
-  hb.start()
-  console.log('Cron: started')
-  console.log('Heartbeat: started')
-  console.log(`Health: http://localhost:${port}/health`)
-
-  process.on('SIGINT', () => { server.stop(); cron.stop(); hb.stop(); process.exit(0) })
-  await new Promise(() => {})
-}
+program
+  .command('agent')
+  .description('Interact with the agent directly')
+  .option('-m, --message <msg>', 'Single message mode')
+  .option('-s, --session <id>', 'Session ID (format: channel:chatId)', 'cli:direct')
+  .option('-c, --config <path>', 'Config file path')
+  .option('-w, --workspace <path>', 'Workspace directory')
+  .option('--no-markdown', 'Disable markdown rendering')
+  .action(cmdAgent)
 
 // ──── serve ────
-async function cmdServe(opts: any) {
-  const config = loadConfig(opts.config)
-  if (!config.apiKey) { console.error('Error: DEEPSEEK_API_KEY required'); return }
-  const provider = makeProvider(config)
-  const loop = new AgentLoop({ provider, workspace: getWorkspace(config), model: config.model })
-  const port = parseInt(opts.port) || 8000
-  createAPIServer({ agentLoop: loop, port })
-  console.log(`API server running on http://localhost:${port}`)
-}
+program
+  .command('serve')
+  .description('Start OpenAI-compatible API server')
+  .option('-p, --port <n>', 'API server port')
+  .option('-H, --host <addr>', 'Bind address')
+  .option('-t, --timeout <n>', 'Request timeout (seconds)')
+  .option('-v, --verbose', 'Verbose output')
+  .option('-c, --config <path>', 'Config file path')
+  .option('-w, --workspace <path>', 'Workspace directory')
+  .action(cmdServe)
+
+// ──── gateway ────
+program
+  .command('gateway')
+  .description('Start the gateway')
+  .option('-p, --port <n>', 'Gateway port')
+  .option('-c, --config <path>', 'Config file path')
+  .option('-w, --workspace <path>', 'Workspace directory')
+  .option('-v, --verbose', 'Verbose output')
+  .action(cmdGateway)
 
 // ──── onboard ────
-function cmdOnboard(opts: any) {
-  const ws = opts.workspace ? opts.workspace : join(homedir(), '.jarvis')
-  if (!existsSync(ws)) mkdirSync(ws, { recursive: true })
-  const cfgPath = join(homedir(), '.jarvis', 'config.json')
-  if (!existsSync(cfgPath)) {
-    mkdirSync(join(homedir(), '.jarvis'), { recursive: true })
-    writeFileSync(cfgPath, JSON.stringify({ apiKey: '', model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com/v1', workspace: ws }, null, 2), 'utf-8')
-    console.log(`Created config at ${cfgPath}`)
-  } else { console.log(`Config exists at ${cfgPath}`) }
-  console.log(`Workspace ready at ${ws}`)
-}
+program
+  .command('onboard')
+  .description('Initialize config and workspace')
+  .option('-w, --workspace <path>', 'Workspace directory')
+  .option('-c, --config <path>', 'Config file path')
+  .option('--wizard', 'Use interactive configuration wizard')
+  .action(cmdOnboard)
 
 // ──── status ────
-async function cmdStatus(opts: any) {
-  const config = loadConfig(opts.config)
-  console.log('jarvis status')
-  console.log(`  Model:    ${config.model ?? 'deepseek-chat'}`)
-  console.log(`  URL:      ${config.baseUrl ?? 'https://api.deepseek.com/v1'}`)
-  console.log(`  WS:       ${getWorkspace(config)}`)
-  console.log(`  API Key:  ${config.apiKey ? 'configured' : 'missing'}`)
+program
+  .command('status')
+  .description('Show jarvis configuration status')
+  .option('-c, --config <path>', 'Config file path')
+  .action(cmdStatus)
+
+// ──── channels ────
+const channelsCmd = program
+  .command('channels')
+  .description('Manage chat channels')
+
+channelsCmd
+  .command('status')
+  .description('Show channel status')
+  .option('-c, --config <path>', 'Config file path')
+  .action(cmdChannelsStatus)
+
+channelsCmd
+  .command('login')
+  .description('Authenticate with a channel')
+  .argument('<channel>', 'Channel name (e.g. weixin, whatsapp)')
+  .option('-f, --force', 'Force re-authentication')
+  .option('-c, --config <path>', 'Config file path')
+  .action(cmdChannelsLogin)
+
+// ──── plugins ────
+const pluginsCmd = program
+  .command('plugins')
+  .description('Manage channel plugins')
+
+pluginsCmd
+  .command('list')
+  .description('List all discovered channels')
+  .option('-c, --config <path>', 'Config file path')
+  .action(cmdPluginsList)
+
+// ──── provider ────
+const providerCmd = program
+  .command('provider')
+  .description('Manage LLM providers')
+
+providerCmd
+  .command('login')
+  .description('Authenticate with an OAuth provider')
+  .argument('<provider>', 'OAuth provider name (e.g. openai-codex, github-copilot)')
+  .action(cmdProviderLogin)
+
+// ──── Default: agent if no command given ────
+if (process.argv.length <= 2) {
+  process.argv.push('agent')
 }
 
-program.command('agent').description('Direct agent mode (use Python TUI for full experience)').option('-m, --message <msg>').option('-c, --config <path>').action(cmdAgent)
-program.command('gateway').description('Start the gateway').option('-p, --port <n>', '18790').option('-c, --config <path>').action(cmdGateway)
-program.command('serve').description('Start API server').option('-p, --port <n>', '8000').option('-c, --config <path>').action(cmdServe)
-program.command('onboard').description('Initialize config').option('-w, --workspace <path>').action(cmdOnboard)
-program.command('status').description('Show status').option('-c, --config <path>').action(cmdStatus)
-
-if (process.argv.length <= 2 && process.env._JARVIS_TUI) process.argv.push('agent')
 program.parse()

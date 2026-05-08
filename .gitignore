@@ -36,3 +36,5 @@ __pycache__/
 .jarvis-server.pid
 tui/jarvis_tui.egg-info/
 tui/.venv/
+cli
+*.skill
