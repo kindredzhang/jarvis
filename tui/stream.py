@@ -1,22 +1,40 @@
-"""nanobot-style streaming renderer + Rich utilities."""
+"""Streaming renderer for CLI output — 1:1 nanobot replica.
+
+Uses Rich Live with auto_refresh=False for stable, flicker-free
+markdown rendering during streaming. Ellipsis mode handles overflow.
+"""
+
+from __future__ import annotations
 
 import sys
 import time
+
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.text import Text
 
+LOGO = "🤖"  # jarvis logo
+
+
 def make_console() -> Console:
+    """Create a Console that emits plain text when stdout is not a TTY.
+
+    Rich's spinner, Live render, and cursor-visibility escape codes all
+    key off Console.is_terminal. Forcing force_terminal=True overrode the
+    isatty() check and caused control sequences to pollute pipes.
+    Deferring to isatty() keeps Rich output in interactive terminals
+    and plain text everywhere else.
+    """
     return Console(file=sys.stdout, force_terminal=sys.stdout.isatty())
 
 
 class ThinkingSpinner:
-    """Spinner that shows 'nanobot is thinking...' with pause support."""
+    """Spinner that shows 'jarvis is thinking...' with pause support."""
 
     def __init__(self, console: Console | None = None):
         c = console or make_console()
-        self._spinner = c.status("[dim]nanobot is thinking...[/dim]", spinner="dots")
+        self._spinner = c.status("[dim]jarvis is thinking...[/dim]", spinner="dots")
         self._active = False
 
     def __enter__(self):
@@ -30,7 +48,9 @@ class ThinkingSpinner:
         return False
 
     def pause(self):
+        """Context manager: temporarily stop spinner for clean output."""
         from contextlib import contextmanager
+
         @contextmanager
         def _ctx():
             if self._spinner and self._active:
@@ -40,27 +60,23 @@ class ThinkingSpinner:
             finally:
                 if self._spinner and self._active:
                     self._spinner.start()
+
         return _ctx()
 
 
-LOGO = "\n".join([
-    " ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗",
-    " ██║██╔══██╗██╔══██╗██║   ██║██║██╔════╝",
-    " ██║███████║██████╔╝██║   ██║██║███████╗",
-    " ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║",
-    " ██║██║  ██║██║  ██║ ╚████╔╝ ██║███████║",
-    " ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝",
-])
-
-
 class StreamRenderer:
-    """Rich Live streaming with markdown. Exact nanobot replica.
+    """Rich Live streaming with markdown. auto_refresh=False avoids render races.
 
-    Flow: spinner -> first delta -> header+Live -> on_end -> stop
+    Deltas arrive pre-filtered (no <think> tags) from the agent loop.
+
+    Flow per round:
+      spinner -> first visible delta -> header + Live renders ->
+      on_end -> Live stops (content stays on screen)
     """
 
-    def __init__(self, render_markdown: bool = True):
+    def __init__(self, render_markdown: bool = True, show_spinner: bool = True):
         self._md = render_markdown
+        self._show_spinner = show_spinner
         self._buf = ""
         self._live: Live | None = None
         self._t = 0.0
@@ -72,8 +88,9 @@ class StreamRenderer:
         return Markdown(self._buf) if self._md and self._buf else Text(self._buf or "")
 
     def _start_spinner(self) -> None:
-        self._spinner = ThinkingSpinner()
-        self._spinner.__enter__()
+        if self._show_spinner:
+            self._spinner = ThinkingSpinner()
+            self._spinner.__enter__()
 
     def _stop_spinner(self) -> None:
         if self._spinner:
@@ -112,9 +129,11 @@ class StreamRenderer:
             make_console().print()
 
     def stop_for_input(self) -> None:
+        """Stop spinner before user input to avoid prompt_toolkit conflicts."""
         self._stop_spinner()
 
     async def close(self) -> None:
+        """Stop spinner/live without rendering a final streamed round."""
         if self._live:
             self._live.stop()
             self._live = None

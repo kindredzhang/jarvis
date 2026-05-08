@@ -1,30 +1,97 @@
-"""Interactive agent mode — 1:1 nanobot replica."""
+"""Interactive agent mode — 1:1 nanobot CLI replica.
 
-import os, json, asyncio, signal, sys
+Architecture: Python TUI talks to Bun API server via HTTP/SSE.
+Bun handles all agent logic; Python provides the terminal UX.
+"""
+
+import os, json, asyncio, signal, sys, time
 from pathlib import Path
+from contextlib import nullcontext
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.styles import Style
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.patch_stdout import patch_stdout
 import httpx
+
 from stream import StreamRenderer, ThinkingSpinner, make_console, LOGO
 
 console = make_console()
 
 SLASH_COMMANDS = ['/help', '/new', '/stop', '/status', '/dream', '/dream-log', '/dream-restore', '/restart']
 EXIT_COMMANDS = {'exit', 'quit', '/exit', '/quit', ':q'}
+
 HISTORY_FILE = Path.home() / '.jarvis' / 'tui_history.txt'
 HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-PROMPT_STYLE = Style.from_dict({'prompt': 'cyan bold'})
+PROMPT_STYLE = Style.from_dict({'prompt': 'bold ansiblue'})
 
-def get_api_base() -> str:
-    return os.environ.get('JARVIS_API_URL', 'http://localhost:8000')
+# ---------------------------------------------------------------------------
+# Shared state so signal handlers can restore terminal, etc.
+# ---------------------------------------------------------------------------
+_PROMPT_SESSION: PromptSession | None = None
+_SAVED_TERM_ATTRS = None
 
-def print_agent_response(content: str, render_markdown: bool = True):
-    """Print assistant response — nanobot _print_agent_response pattern."""
+
+class SafeFileHistory(FileHistory):
+    """FileHistory subclass that sanitizes surrogate characters on write."""
+
+    def store_string(self, string: str) -> None:
+        safe = string.encode("utf-8", errors="surrogateescape").decode("utf-8", errors="replace")
+        super().store_string(safe)
+
+
+def _restore_terminal() -> None:
+    """Restore terminal to its original state (echo, line buffering, etc.)."""
+    try:
+        import termios
+        if _SAVED_TERM_ATTRS is not None:
+            termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, _SAVED_TERM_ATTRS)
+    except Exception:
+        pass
+
+
+def _init_prompt_session() -> None:
+    """Create the prompt_toolkit session with persistent file history."""
+    global _PROMPT_SESSION, _SAVED_TERM_ATTRS
+    try:
+        import termios
+        _SAVED_TERM_ATTRS = termios.tcgetattr(sys.stdin.fileno())
+    except Exception:
+        pass
+
+    _PROMPT_SESSION = PromptSession(
+        history=SafeFileHistory(str(HISTORY_FILE)),
+        enable_open_in_editor=False,
+        multiline=False,  # Enter submits (single line mode)
+    )
+
+
+async def _read_interactive_input_async() -> str:
+    """Read user input using prompt_toolkit (handles paste, history, display)."""
+    if _PROMPT_SESSION is None:
+        raise RuntimeError("Call _init_prompt_session() first")
+    try:
+        with patch_stdout():
+            return await _PROMPT_SESSION.prompt_async(
+                HTML("<b fg='ansiblue'>You:</b> "),
+            )
+    except EOFError as exc:
+        raise KeyboardInterrupt from exc
+
+
+def _is_exit_command(command: str) -> bool:
+    return command.lower() in EXIT_COMMANDS
+
+
+# ---------------------------------------------------------------------------
+# Response rendering — nanobot style
+# ---------------------------------------------------------------------------
+
+def _print_agent_response(content: str, render_markdown: bool = True, metadata: dict | None = None):
+    """Render assistant response with consistent terminal styling — nanobot _print_agent_response."""
     console.print()
     if render_markdown:
         from rich.markdown import Markdown
@@ -33,112 +100,144 @@ def print_agent_response(content: str, render_markdown: bool = True):
         console.print(content)
     console.print()
 
-async def run_once(message: str, base_url: str, session_id: str, markdown: bool):
-    """Single message mode — nanobot run_once pattern."""
-    renderer = StreamRenderer(render_markdown=markdown)
 
-    # Build request
-    payload = {"messages": [{"role": "user", "content": message}], "session_id": session_id, "stream": True}
+def _print_progress_line(text: str, thinking: ThinkingSpinner | None) -> None:
+    """Print a progress line, pausing the spinner if needed."""
+    with thinking.pause() if thinking else nullcontext():
+        console.print(f"  [dim]↳ {text}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# HTTP helpers
+# ---------------------------------------------------------------------------
+
+def _api_base() -> str:
+    return os.environ.get('JARVIS_API_URL', 'http://localhost:8000')
+
+
+async def _send_message(base_url: str, message: str, session_id: str,
+                        markdown: bool, thinking: ThinkingSpinner | None = None):
+    """Send a message to the Bun API server, streaming response via SSE.
+
+    Returns the final non-streamed content if the response was not streamed,
+    otherwise None.
+    """
+    renderer = StreamRenderer(render_markdown=markdown, show_spinner=False)
+    payload = {
+        "messages": [{"role": "user", "content": message}],
+        "session_id": session_id,
+        "stream": True,
+    }
+
+    non_streamed_content: str | None = None
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-        try:
-            async with client.stream("POST", f"{base_url}/v1/chat/completions", json=payload) as resp:
-                if resp.status_code != 200:
-                    text = await resp.atext()
-                    console.print(f"[red]Error: HTTP {resp.status_code}: {text[:200]}[/red]")
-                    return
-                async for line in resp.aiter_lines():
-                    if line.startswith("data: ") and line != "data: [DONE]":
-                        try:
-                            chunk = json.loads(line[6:])
-                            choices = chunk.get("choices", [])
-                            if not choices:
-                                continue
-                            delta = choices[0].get("delta", {})
-                            content = delta.get("content", "")
-                            finish = choices[0].get("finish_reason")
-                            if content:
-                                await renderer.on_delta(content)
-                            if finish and finish != "tool_calls":
-                                await renderer.on_end(resuming=False)
-                        except (json.JSONDecodeError, KeyError, IndexError):
-                            pass
-        except Exception as e:
+        async with client.stream("POST", f"{base_url}/v1/chat/completions", json=payload) as resp:
+            if resp.status_code != 200:
+                text = await resp.atext()
+                console.print(f"\n[red]Error: HTTP {resp.status_code}: {text[:300]}[/red]")
+                await renderer.close()
+                return None
+
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                if line == "data: [DONE]":
+                    await renderer.on_end(resuming=False)
+                    continue
+                try:
+                    chunk = json.loads(line[6:])
+                    choices = chunk.get("choices", [])
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
+                    content = delta.get("content", "")
+                    finish = choices[0].get("finish_reason")
+                    if content:
+                        await renderer.on_delta(content)
+                    elif finish and finish != "tool_calls":
+                        await renderer.on_end(resuming=False)
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    pass
+
             if not renderer.streamed:
-                console.print(f"[red]Error: {e}[/red]")
-            await renderer.close()
+                await renderer.close()
+                non_streamed_content = None  # no non-streamed fallback on success
+
+    if non_streamed_content:
+        return non_streamed_content
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Single message mode — nanobot run_once pattern
+# ---------------------------------------------------------------------------
+
+async def run_once(message: str, base_url: str, session_id: str, markdown: bool):
+    await _send_message(base_url, message, session_id, markdown)
+
+
+# ---------------------------------------------------------------------------
+# Interactive REPL — nanobot run_interactive pattern
+# ---------------------------------------------------------------------------
 
 async def run_interactive(base_url: str, session_id: str, markdown: bool):
-    """Interactive REPL — nanobot run_interactive pattern."""
-    session = PromptSession(
-        history=FileHistory(str(HISTORY_FILE)),
-        auto_suggest=AutoSuggestFromHistory(),
-        completer=WordCompleter(SLASH_COMMANDS, ignore_case=True),
-        style=PROMPT_STYLE,
-    )
+    _init_prompt_session()
 
-    # Handle signals
-    def handle_signal(sig, frame):
-        console.print(f"\nReceived {signal.Signals(sig).name}, goodbye!")
+    model = os.environ.get('JARVIS_MODEL', 'deepseek-chat')
+    console.print(f"{LOGO}  Interactive mode [bold blue]({model})[/bold blue] — type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit\n")
+
+    # Set up signal handlers
+    def _handle_signal(signum, frame):
+        _restore_terminal()
+        sig_name = signal.Signals(signum).name
+        console.print(f"\nReceived {sig_name}, goodbye!")
         sys.exit(0)
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
+
+    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+    if hasattr(signal, 'SIGHUP'):
+        signal.signal(signal.SIGHUP, _handle_signal)
     if hasattr(signal, 'SIGPIPE'):
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
-    console.print(f"{LOGO} Interactive mode [bold blue]({os.environ.get('JARVIS_MODEL', 'deepseek-chat')})[/bold blue] — type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit\n")
-
-    thinking = None
+    thinking: ThinkingSpinner | None = None
 
     while True:
         try:
-            user_input = (await session.prompt_async(
-                [('class:prompt', '▶ '), ('', '')],
-            )).strip()
-        except (EOFError, KeyboardInterrupt):
-            console.print("\nGoodbye!", style="dim")
+            user_input = await _read_interactive_input_async()
+        except (KeyboardInterrupt, EOFError):
+            _restore_terminal()
+            console.print("\nGoodbye!")
             break
 
-        if not user_input:
+        command = user_input.strip()
+        if not command:
             continue
-        if user_input.lower() in EXIT_COMMANDS:
-            console.print("Goodbye!", style="dim")
+
+        if _is_exit_command(command):
+            _restore_terminal()
+            console.print("\nGoodbye!")
             break
 
-        # Streaming logic: spinner -> first delta -> Live rendering -> on_end
-        renderer = StreamRenderer(render_markdown=markdown)
-
-        payload = {"messages": [{"role": "user", "content": user_input}], "session_id": session_id, "stream": True}
+        # Start thinking spinner
+        thinking = ThinkingSpinner()
+        thinking.__enter__()
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-                async with client.stream("POST", f"{base_url}/v1/chat/completions", json=payload) as resp:
-                    if resp.status_code != 200:
-                        text = await resp.atext()
-                        console.print(f"[red]Error: HTTP {resp.status_code}[/red]")
-                        continue
-                    async for line in resp.aiter_lines():
-                        if line.startswith("data: ") and line != "data: [DONE]":
-                            try:
-                                chunk = json.loads(line[6:])
-                                choices = chunk.get("choices", [])
-                                if not choices: continue
-                                delta = choices[0].get("delta", {})
-                                content = delta.get("content", "")
-                                finish = choices[0].get("finish_reason")
-                                if content:
-                                    await renderer.on_delta(content)
-                                if finish and finish != "tool_calls":
-                                    await renderer.on_end(resuming=False)
-                            except (json.JSONDecodeError, KeyError, IndexError):
-                                pass
-        except Exception as e:
-            if not renderer.streamed:
-                console.print(f"[red]Error: {e}[/red]")
-            await renderer.close()
+            await _send_message(base_url, command, session_id, markdown, thinking)
+        finally:
+            if thinking:
+                thinking.__exit__(None, None, None)
+                thinking = None
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 async def run_agent(message: str | None = None, session_id: str = "cli:direct", markdown: bool = True):
-    base_url = get_api_base()
+    base_url = _api_base()
 
     if message:
         await run_once(message, base_url, session_id, markdown)

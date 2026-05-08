@@ -14,9 +14,8 @@ dependencies = [
 [project.scripts]
 jarvis = "main:app"
 
-
 [tool.uv]
 package = true
 
 [tool.setuptools]
-py-modules = ["main", "agent", "stream", "utils"]
+py-modules = ["main", "agent", "stream"]
