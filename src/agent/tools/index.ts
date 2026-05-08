@@ -18,3 +18,7 @@ export { ExecTool } from './shell'
 export { SpawnTool } from './spawn'
 export { connectMCPServer, connectMCPServers } from './mcp'
 export type { MCPServerConfig } from './mcp'
+
+export { WebSearchTool, WebFetchTool } from './web'
+export { MessageTool } from './message'
+export { fileState } from './file_state'

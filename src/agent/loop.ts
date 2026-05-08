@@ -50,6 +50,9 @@ import {
   GrepTool,
   ExecTool,
   SpawnTool,
+  WebSearchTool,
+  WebFetchTool,
+  MessageTool,
 } from './tools'
 import { CommandRouter } from '../command/router'
 import { registerBuiltinCommands } from '../command/builtin'
@@ -197,6 +200,9 @@ export class AgentLoop {
     this.tools.register(new GlobTool())
     this.tools.register(new GrepTool())
     this.tools.register(new ExecTool({ workingDir: this.workspace }))
+    this.tools.register(new WebSearchTool())
+    this.tools.register(new WebFetchTool())
+    this.tools.register(new MessageTool())
   }
 
   // ---- 公共 API ----
