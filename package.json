@@ -1,15 +1,20 @@
 {
   "name": "jarvis",
-  "module": "src/cli.ts",
+  "version": "1.0.0",
+  "description": "Personal AI Assistant",
   "type": "module",
   "private": true,
   "bin": {
-    "jarvis": "src/cli.ts"
+    "jarvis": "bin/jarvis"
   },
   "scripts": {
-    "jarvis": "bun run src/cli.ts",
+    "jarvis": "bin/jarvis",
+    "serve": "bun run src/cli.ts serve",
+    "gateway": "bun run src/cli.ts gateway",
+    "agent": "bin/jarvis agent",
     "test": "bun test",
-    "typecheck": "tsc --noEmit --skipLibCheck"
+    "typecheck": "tsc --noEmit --skipLibCheck",
+    "install": "./bin/jarvis install"
   },
   "devDependencies": {
     "@types/bun": "latest"
