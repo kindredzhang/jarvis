@@ -1,199 +1,217 @@
 #!/usr/bin/env bun
 /**
- * jarvis —— CLI 入口（交互式 REPL + 单次消息）
+ * jarvis —— Personal AI Assistant CLI
  *
- * 用法：
- *   jarvis                      交互式 REPL
- *   jarvis -m "消息"            单次消息
- *   jarvis -c config.json       指定配置
- *
- * 流式输出 / spinner / 输入历史 / 信号处理 / Markdown 渲染
+ * nanobot 1:1 复刻:
+ *   jarvis agent    交互式 REPL / 单次消息
+ *   jarvis gateway  启动网关（AgentLoop + Cron + Heartbeat + Health）
+ *   jarvis serve    启动 OpenAI 兼容 API 服务器
+ *   jarvis onboard  初始化配置和工作区
+ *   jarvis status   显示运行状态
  */
 
-import { createInterface } from 'node:readline'
-import { stdin, stdout, exit, argv, cwd } from 'node:process'
-import { existsSync, mkdirSync, readFileSync, appendFileSync } from 'node:fs'
+import { Command } from 'commander'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { stdin, stdout } from 'node:process'
+import { createInterface } from 'node:readline'
 import chalk from 'chalk'
 import ora from 'ora'
 import { DeepSeekProvider } from './providers/deepseek'
-import { OpenAICompatProvider } from './providers/openai-compat'
-import { AnthropicProvider } from './providers/anthropic'
 import { AgentLoop } from './agent/loop'
 import { loadConfig } from './config'
+import { createAPIServer } from './api/server'
+import { CronService } from './cron/service'
+import { HeartbeatService } from './heartbeat/service'
 
-// ---- Markdown 简易渲染 ----
+const LOGO = `
+ ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗
+ ██║██╔══██╗██╔══██╗██║   ██║██║██╔════╝
+ ██║███████║██████╔╝██║   ██║██║███████╗
+ ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║
+ ██║██║  ██║██║  ██║ ╚████╔╝ ██║███████║
+ ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝
 
+  Personal AI Assistant
+`
+
+function makeProvider(config: any) {
+  return new DeepSeekProvider({ apiKey: config.apiKey, model: config.model, baseUrl: config.baseUrl })
+}
+
+function getWorkspace(config: any) {
+  const ws = config.workspace ?? join(homedir(), '.jarvis')
+  if (!existsSync(ws)) mkdirSync(ws, { recursive: true })
+  return ws
+}
+
+// ---- Markdown 渲染 ----
 function renderMarkdown(text: string): string {
-  // 代码块 (```)
-  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    return chalk.dim('```' + (lang || '')) + '\n' + code.trim() + '\n' + chalk.dim('```')
-  })
-  // 行内代码 (`code`)
-  text = text.replace(/`([^`]+)`/g, (_, code) => chalk.cyan(code))
-  // 加粗 (**text**)
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => chalk.dim('```'+(lang||'')) + '\n' + code.trim() + '\n' + chalk.dim('```'))
+  text = text.replace(/`([^`]+)`/g, (_, c) => chalk.cyan(c))
   text = text.replace(/\*\*(.+?)\*\*/g, (_, t) => chalk.bold(t))
-  // 斜体 (*text*)
-  text = text.replace(/\*(.+?)\*/g, (_, t) => chalk.italic(t))
-  // 标题 (# heading)
-  text = text.replace(/^(#{1,6})\s+(.+)$/gm, (_, hashes, t) => chalk.bold.underline(t))
-  // 列表 (- item)
-  text = text.replace(/^(\s*[-*+])\s+(.+)$/gm, (_, bullet, t) => `${chalk.dim(bullet)} ${t}`)
-  // 数字列表 (1. item)
-  text = text.replace(/^(\s*\d+\.)\s+(.+)$/gm, (_, num, t) => `${chalk.dim(num)} ${t}`)
-  // 引用 (> text)
-  text = text.replace(/^>\s+(.+)$/gm, (_, t) => chalk.dim(`│ ${t}`))
-  // 链接 [text](url)
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, t, url) => chalk.blue(t) + chalk.dim(` (${url})`))
+  text = text.replace(/^#{1,6}\s+(.+)$/gm, (_, t) => chalk.bold.underline(t))
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, t, u) => chalk.blue(t) + chalk.dim(` (${u})`))
   return text
 }
 
-// ---- CLI ----
+// ──── agent 命令 ────
+async function cmdAgent(opts: any) {
+  const config = loadConfig(opts.config)
+  if (!config.apiKey) { console.error(chalk.red('Error: DEEPSEEK_API_KEY required')); return }
+  const provider = makeProvider(config)
+  const loop = new AgentLoop({ provider, workspace: getWorkspace(config), model: config.model, timezone: config.timezone })
 
-async function main() {
-  const config = loadConfig()
-
-  if (!config.apiKey) {
-    console.error(chalk.red('✖ Error: DEEPSEEK_API_KEY is required.'))
-    console.error(chalk.dim('  Set it via environment variable or in jarvis.json'))
-    exit(1)
-  }
-
-  // 确保工作区存在
-  if (!existsSync(config.workspace!)) {
-    mkdirSync(config.workspace!, { recursive: true })
-  }
-
-  // 初始化 provider
-  const provider = new DeepSeekProvider({
-    apiKey: config.apiKey,
-    model: config.model,
-    baseUrl: config.baseUrl,
-  })
-
-  // 初始化 AgentLoop
-  const loop = new AgentLoop({
-    provider,
-    workspace: config.workspace!,
-    model: config.model,
-    maxIterations: config.maxIterations,
-    maxToolResultChars: config.maxToolResultChars,
-    timezone: config.timezone,
-  })
-
-  const args = process.argv.slice(2)
-  let messageMode = false
-  let message = ''
-
-  for (let i = 0; i < args.length; i++) {
-    switch (args[i]) {
-      case '-m':
-      case '--message':
-        messageMode = true
-        message = args[++i] ?? ''
-        break
-      case '-h':
-      case '--help':
-        printHelp()
-        exit(0)
-    }
-  }
-
-  if (messageMode) {
-    await runSingle(loop, message)
-  } else {
-    await runRepl(loop)
-  }
-}
-
-function printHelp() {
-  console.log(`
-${chalk.bold('jarvis')} — ${chalk.dim('Personal AI Assistant')}
-
-${chalk.bold('用法：')}
-  ${chalk.cyan('jarvis')}              ${chalk.dim('交互式 REPL')}
-  ${chalk.cyan('jarvis -m "消息"')}    ${chalk.dim('单次消息')}
-  ${chalk.cyan('jarvis -h')}           ${chalk.dim('帮助')}
-
-${chalk.bold('环境变量：')}
-  DEEPSEEK_API_KEY   ${chalk.dim('API Key（必需）')}
-  DEEPSEEK_BASE_URL  ${chalk.dim('API 地址')}
-  JARVIS_MODEL       ${chalk.dim('模型名')}
-  JARVIS_WORKSPACE   ${chalk.dim('工作区路径')}
-`)
-}
-
-// ---- 单次消息 ----
-
-async function runSingle(loop: AgentLoop, message: string) {
-  console.log(`\n  ${chalk.dim('Sending:')} ${message}\n`)
-
-  const spinner = ora({ text: 'thinking...', color: 'cyan' }).start()
-  try {
-    const response = await loop.processDirect(message)
+  if (typeof opts.message === 'string') {
+    const spinner = ora({ text: 'thinking...', color: 'cyan' }).start()
+    const r = await loop.processDirect(opts.message)
     spinner.stop()
-    if (response?.content) {
-      console.log(renderMarkdown(response.content))
-    }
-  } catch (err) {
-    spinner.fail(String(err))
+    if (r?.content) console.log(renderMarkdown(r.content))
+    return
   }
-  exit(0)
-}
 
-// ---- 交互式 REPL ----
+  // Interactive REPL
+  const history = (() => { try { return readFileSync(join(homedir(), '.jarvis', 'history.txt'), 'utf-8').split('\n').filter(Boolean).slice(-100) } catch { return [] } })()
+  const SLASH = ['/help','/new','/stop','/status','/dream','/dream-log','/dream-restore','/restart']
+  const rl = createInterface({ input: stdin, output: stdout, prompt: chalk.cyan('jarvis> '), completer: (line: string) => [line.startsWith('/') ? SLASH.filter(c => c.startsWith(line.toLowerCase())) : SLASH, line], history, historySize: 100 })
+  const isExit = (s: string) => ['exit','quit','/exit','/quit',':q','q'].includes(s.toLowerCase().trim())
 
-const HISTORY_FILE = join(homedir(), '.jarvis', 'history.txt')
-
-function loadHistory(): string[] {
-  try {
-    const raw = readFileSync(HISTORY_FILE, 'utf-8')
-    return raw.split('\n').filter(Boolean).slice(-100)
-  } catch { return [] }
-}
-
-function saveHistory(input: string) {
-  try {
-    const dir = join(homedir(), '.jarvis')
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    appendFileSync(HISTORY_FILE, input + '\n', 'utf-8')
-  } catch { /* ignore history errors */ }
-}
-
-function runRepl(loop: AgentLoop): Promise<void> {
-  return new Promise((resolve) => {
-  const history = loadHistory()
-  const SLASH_COMMANDS = ["/help", "/new", "/stop", "/status", "/restart", "/dream", "/dream-log", "/dream-restore"]
-  function completer(line: string): [string[], string] {
-    const hits = line.startsWith('/') ? SLASH_COMMANDS.filter((c) => c.startsWith(line.toLowerCase())) : []
-    return [hits.length ? hits : SLASH_COMMANDS, line]
-  }
-  const rl = createInterface({ input: stdin, output: stdout, prompt: chalk.cyan('jarvis> '), completer, history, historySize: 100 })
-  const EXIT_COMMANDS = new Set(['exit', 'quit', '/exit', '/quit', ':q', 'q'])
-  const isExit = (s: string) => EXIT_COMMANDS.has(s.trim().toLowerCase())
-  process.on('SIGINT', () => { console.log(chalk.dim('\nGoodbye!')); rl.close(); resolve() })
-  console.log(chalk.bold(`\n  jarvis ${chalk.dim('— Personal AI Assistant')}`) + '\n' + chalk.dim('  Type /help for commands. Tab to complete slash commands.\n'))
+  process.on('SIGINT', () => { console.log(chalk.dim('\nGoodbye!')); process.exit(0) })
+  console.log(chalk.bold(`\n${LOGO}`) + chalk.dim('\nType /help for commands. Tab to complete.\n'))
   rl.prompt()
-  rl.on('line', async (rawLine: string) => {
-    const input = rawLine.trim()
+
+  rl.on('line', async (raw: string) => {
+    const input = raw.trim()
     if (!input) { rl.prompt(); return }
-    if (isExit(input)) { console.log(chalk.dim('Goodbye!')); rl.close(); resolve(); return }
-    saveHistory(input)
+    if (isExit(input)) { console.log(chalk.dim('Goodbye!')); rl.close(); return }
+    try { appendFileSync(join(homedir(), '.jarvis', 'history.txt'), input + '\n', 'utf-8') } catch {}
     rl.pause()
     const spinner = ora({ text: 'thinking...', color: 'cyan' }).start()
     try {
-      const response = await loop.processDirect(input)
+      const r = await loop.processDirect(input)
       spinner.stop()
-      if (response?.content) console.log('\n' + renderMarkdown(response.content))
-    } catch (err) { spinner.fail(String(err)) }
+      if (r?.content) console.log('\n' + renderMarkdown(r.content))
+    } catch (e) { spinner.fail(String(e)) }
     console.log()
     rl.prompt()
   })
-  rl.on('close', () => resolve())
-  })
 }
-main().catch((err) => {
-  console.error(chalk.red(`\n✖ ${err}`))
-  exit(1)
-})
+
+// ──── gateway 命令 ────
+async function cmdGateway(opts: any) {
+  const config = loadConfig(opts.config)
+  if (!config.apiKey) { console.error(chalk.red('Error: DEEPSEEK_API_KEY required')); return }
+
+  const workspace = getWorkspace(config)
+  const provider = makeProvider(config)
+  const port = opts.port ?? 3000
+
+  console.log(chalk.bold(`\n${LOGO}`))
+  console.log(chalk.dim(`  Starting gateway on port ${port}...\n`))
+
+  // Agent
+  const loop = new AgentLoop({ provider, workspace, model: config.model, timezone: config.timezone })
+
+  // Cron
+  const cronPath = join(workspace, 'cron', 'jobs.json')
+  const cron = new CronService(cronPath)
+
+  // Heartbeat
+  const hb = new HeartbeatService({ workspace, provider, model: config.model })
+
+  // Health server
+  const server = Bun.serve({
+    port,
+    fetch() { return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } }) },
+  })
+
+  console.log(chalk.green('✓') + ' Gateway running')
+  console.log(chalk.dim(`  Health: http://localhost:${port}/health\n`))
+
+  // Start services
+  cron.start()
+  hb.start()
+  console.log(chalk.green('✓') + ' Cron: started')
+  console.log(chalk.green('✓') + ' Heartbeat: started')
+
+  // Keep alive
+  process.on('SIGINT', () => { server.stop(); cron.stop(); hb.stop(); console.log(chalk.dim('\nShutting down...')); process.exit(0) })
+  await new Promise(() => {}) // block forever
+}
+
+// ──── serve 命令 ────
+async function cmdServe(opts: any) {
+  const config = loadConfig(opts.config)
+  if (!config.apiKey) { console.error(chalk.red('Error: DEEPSEEK_API_KEY required')); return }
+  const provider = makeProvider(config)
+  const loop = new AgentLoop({ provider, workspace: getWorkspace(config), model: config.model })
+  createAPIServer({ agentLoop: loop, port: opts.port ?? 3000 })
+  console.log(chalk.green(`✓ API server running on http://localhost:${opts.port ?? 3000}`))
+}
+
+// ──── onboard 命令 ────
+function cmdOnboard(opts: any) {
+  const ws = opts.workspace ? opts.workspace : join(homedir(), '.jarvis')
+  if (!existsSync(ws)) mkdirSync(ws, { recursive: true })
+
+  const cfgPath = join(homedir(), '.jarvis', 'config.json')
+  if (!existsSync(cfgPath)) {
+    mkdirSync(join(homedir(), '.jarvis'), { recursive: true })
+    writeFileSync(cfgPath, JSON.stringify({ apiKey: '', model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com/v1', workspace: ws }, null, 2), 'utf-8')
+    console.log(chalk.green('✓') + ` Created config at ${cfgPath}`)
+  } else {
+    console.log(chalk.yellow('Config already exists at ') + cfgPath)
+  }
+
+  if (!existsSync(ws)) mkdirSync(ws, { recursive: true })
+  console.log(chalk.green('✓') + ` Workspace ready at ${ws}`)
+  console.log(chalk.dim(`\n  1. Add API key: export DEEPSEEK_API_KEY=sk-xxx\n  2. Chat: jarvis agent\n  3. Gateway: jarvis gateway\n`))
+}
+
+// ──── status 命令 ────
+async function cmdStatus(opts: any) {
+  const config = loadConfig(opts.config)
+  console.log(chalk.bold('\n  jarvis status\n'))
+  console.log(`  Model:    ${chalk.cyan(config.model ?? 'deepseek-chat')}`)
+  console.log(`  URL:      ${chalk.dim(config.baseUrl ?? 'https://api.deepseek.com/v1')}`)
+  console.log(`  WS:       ${chalk.dim(getWorkspace(config))}`)
+  console.log(`  API Key:  ${config.apiKey ? chalk.green('✓ configured') : chalk.red('✗ missing')}\n`)
+}
+
+// ──── CLI 注册 ────
+const program = new Command()
+program.name('jarvis').description('Personal AI Assistant').version('1.0.0')
+
+program.command('agent')
+  .description('Interact with the agent directly')
+  .option('-m, --message <msg>', 'Single message mode')
+  .option('-c, --config <path>', 'Config file')
+  .action(cmdAgent)
+
+program.command('gateway')
+  .description('Start the gateway (agent + cron + heartbeat)')
+  .option('-p, --port <n>', 'Port (default 3000)', '3000')
+  .option('-c, --config <path>', 'Config file')
+  .action(cmdGateway)
+
+program.command('serve')
+  .description('Start OpenAI-compatible API server')
+  .option('-p, --port <n>', 'Port (default 3000)', '3000')
+  .option('-c, --config <path>', 'Config file')
+  .action(cmdServe)
+
+program.command('onboard')
+  .description('Initialize config and workspace')
+  .option('-w, --workspace <path>', 'Workspace path')
+  .option('-c, --config <path>', 'Config file')
+  .action(cmdOnboard)
+
+program.command('status')
+  .description('Show system status')
+  .option('-c, --config <path>', 'Config file')
+  .action(cmdStatus)
+
+// Default: agent
+if (process.argv.length <= 2) process.argv.push('agent')
+program.parse()
