@@ -164,7 +164,7 @@ function saveHistory(input: string) {
 function runRepl(loop: AgentLoop): Promise<void> {
   return new Promise((resolve) => {
   const history = loadHistory()
-  const SLASH_COMMANDS = ['/help', '/new', '/stop', '/status', '/restart', '/dream']
+  const SLASH_COMMANDS = ["/help", "/new", "/stop", "/status", "/restart", "/dream", "/dream-log", "/dream-restore"]
   function completer(line: string): [string[], string] {
     const hits = line.startsWith('/') ? SLASH_COMMANDS.filter((c) => c.startsWith(line.toLowerCase())) : []
     return [hits.length ? hits : SLASH_COMMANDS, line]

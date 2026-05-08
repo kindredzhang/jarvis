@@ -138,6 +138,7 @@ export class AgentLoop {
     registerBuiltinCommands(
       (cmd, handler) => this.commands.priorityCmd(cmd, handler),
       (cmd, handler) => this.commands.exactCmd(cmd, handler),
+      (cmd, handler) => this.commands.prefixCmd(cmd, handler),
     )
     this.runner = new AgentRunner(config.provider)
 

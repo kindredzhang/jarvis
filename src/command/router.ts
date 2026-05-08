@@ -23,6 +23,7 @@ export interface CommandContext {
   chatId: string
   /** 消息元数据 */
   metadata: Record<string, unknown>
+  loop?: any
 }
 
 /** Handler 签名 */
