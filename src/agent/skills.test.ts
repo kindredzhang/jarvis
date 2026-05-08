@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe('SkillsLoader', () => {
   test('listSkills is empty when no skills exist', () => {
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const skills = loader.listSkills()
     expect(skills).toHaveLength(0)
   })
@@ -35,7 +35,7 @@ describe('SkillsLoader', () => {
       'utf-8',
     )
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const skills = loader.listSkills()
     expect(skills).toHaveLength(1)
     expect(skills[0].name).toBe('test-skill')
@@ -43,7 +43,7 @@ describe('SkillsLoader', () => {
   })
 
   test('loadSkill returns null for unknown skill', () => {
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     expect(loader.loadSkill('nonexistent')).toBeNull()
   })
 
@@ -57,7 +57,7 @@ describe('SkillsLoader', () => {
       'utf-8',
     )
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const content = loader.loadSkill('greeter')
     expect(content).toContain('Hello!')
   })
@@ -80,7 +80,7 @@ describe('SkillsLoader', () => {
       'utf-8',
     )
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const always = loader.getAlwaysSkills()
     expect(always).toContain('always-skill')
     expect(always).not.toContain('normal-skill')
@@ -92,7 +92,7 @@ describe('SkillsLoader', () => {
     mkdirSync(join(skillsDir, 'blocked'))
     writeFileSync(join(skillsDir, 'blocked', 'SKILL.md'), '---\n---\n\nBlocked.', 'utf-8')
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills"), disabledSkills: ['blocked'] })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills"), disabledSkills: ['blocked'] })
     const skills = loader.listSkills()
     expect(skills).toHaveLength(0)
   })
@@ -107,7 +107,7 @@ describe('SkillsLoader', () => {
       'utf-8',
     )
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const summary = loader.buildSkillsSummary()
     expect(summary).toContain('finder')
     expect(summary).toContain('Find things')
@@ -121,7 +121,7 @@ describe('SkillsLoader', () => {
     mkdirSync(join(skillsDir, 'skill-b'))
     writeFileSync(join(skillsDir, 'skill-b', 'SKILL.md'), '---\n---\n\nB.', 'utf-8')
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const summary = loader.buildSkillsSummary(new Set(['skill-a']))
     expect(summary).toContain('skill-b')
     expect(summary).not.toContain('skill-a')
@@ -137,7 +137,7 @@ describe('SkillsLoader', () => {
       'utf-8',
     )
 
-    const loader = new SkillsLoader({ workspace, builtinSkillsDir: join(workspace, "empty-skills") })
+    const loader = new SkillsLoader({ workspace, builtinDirs: join(workspace, "empty-skills") })
     const meta = loader.getSkillMetadata('meta-skill')
     expect(meta).not.toBeNull()
     expect(meta!.description).toBe('Meta')

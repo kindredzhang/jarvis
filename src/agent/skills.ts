@@ -62,6 +62,8 @@ function extractRequires(content: string): { bins: string[]; env: string[] } {
 
 /** 项目内置技能目录 */
 const PROJECT_SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills')
+/** 用户级 skill 目录 ~/.jarvis/skills */
+const USER_SKILLS_DIR = join(process.env.HOME ?? '~', '.jarvis', 'skills')
 
 export interface SkillEntry {
   name: string
@@ -71,16 +73,16 @@ export interface SkillEntry {
 
 export class SkillsLoader {
   private workspace: string
-  private builtinSkillsDir: string
+  private builtinDirs: string[]
   private disabledSkills: Set<string>
 
   constructor(options: {
     workspace: string
     disabledSkills?: string[]
-    builtinSkillsDir?: string
+    builtinDirs?: string[]
   }) {
     this.workspace = options.workspace
-    this.builtinSkillsDir = options.builtinSkillsDir ?? PROJECT_SKILLS_DIR
+    this.builtinDirs = options.builtinDirs ?? [PROJECT_SKILLS_DIR, USER_SKILLS_DIR]
     this.disabledSkills = new Set(options.disabledSkills ?? [])
   }
 
@@ -92,9 +94,14 @@ export class SkillsLoader {
     )
     const workspaceNames = new Set(workspaceSkills.map((s) => s.name))
 
-    const builtinSkills = existsSync(this.builtinSkillsDir)
-      ? this._entriesFromDir(this.builtinSkillsDir, 'builtin' as const, workspaceNames)
-      : []
+    const builtinSkills: SkillEntry[] = []
+    const seenBuiltin = new Set(workspaceNames)
+    for (const dir of this.builtinDirs) {
+      if (existsSync(dir)) {
+        const entries = this._entriesFromDir(dir, 'builtin' as const, seenBuiltin)
+        for (const e of entries) { seenBuiltin.add(e.name); builtinSkills.push(e) }
+      }
+    }
 
     const all = [...workspaceSkills, ...builtinSkills]
       .filter((s) => !this.disabledSkills.has(s.name))
@@ -108,8 +115,8 @@ export class SkillsLoader {
   /** 加载单个技能内容 */
   loadSkill(name: string): string | null {
     const roots = [join(this.workspace, 'skills')]
-    if (existsSync(this.builtinSkillsDir)) {
-      roots.push(this.builtinSkillsDir)
+    for (const dir of this.builtinDirs) {
+      if (existsSync(dir)) roots.push(dir)
     }
     for (const root of roots) {
       const path = join(root, name, 'SKILL.md')
