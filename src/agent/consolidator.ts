@@ -262,6 +262,15 @@ export class Dream {
       const newMemory = this._applyAnalysisToMemory(analysis, rawMemory)
       if (newMemory && newMemory !== rawMemory) {
         this.store.writeMemory(newMemory)
+        // Git auto-commit
+        try {
+          if (this.store.git.isInitialized()) {
+            const ts = new Date().toISOString().slice(0, 16).replace('T', ' ')
+            this.store.git.autoCommit(`dream: ${ts}, memory updated`)
+          }
+        } catch {
+          // auto-commit failure is non-fatal
+        }
         this.store.setLastDreamCursor(newCursor)
         this.store.compactHistory()
         return true

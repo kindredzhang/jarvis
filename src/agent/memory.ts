@@ -17,6 +17,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { JSONL } from '../utils/jsonl'
+import { GitStore } from '../utils/gitstore'
 import { truncateText, stripThinkTags } from '../utils/helpers'
 
 /** 历史条目硬上限字符数 */
@@ -39,6 +40,8 @@ export class MemoryStore {
   readonly soulFile: string
   readonly userFile: string
 
+  readonly git: GitStore
+
   private cursorFile: string
   private dreamCursorFile: string
 
@@ -57,7 +60,16 @@ export class MemoryStore {
     this.cursorFile = join(this.memoryDir, '.cursor')
     this.dreamCursorFile = join(this.memoryDir, '.dream_cursor')
 
+    this.git = new GitStore(workspace, [
+      'SOUL.md',
+      'USER.md',
+      'memory/MEMORY.md',
+    ])
+
     mkdirSync(this.memoryDir, { recursive: true })
+
+    // 初始化 Git 版本管理（非关键，失败不影响使用）
+    try { this.git.init() } catch { /* git not available */ }
   }
 
   // ---- MEMORY.md（长期记忆） ----
