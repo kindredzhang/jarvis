@@ -1,8 +1,16 @@
 {
   "name": "jarvis",
-  "module": "index.ts",
+  "module": "src/cli.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "jarvis": "src/cli.ts"
+  },
+  "scripts": {
+    "cli": "bun run src/cli.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --skipLibCheck"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

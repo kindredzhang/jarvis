@@ -41,6 +41,15 @@ import { RUNTIME_CONTEXT_TAG, RUNTIME_CONTEXT_END } from './context'
 import { MemoryStore } from './memory'
 import { SessionStore, type SessionMessageRecord } from './session'
 import { truncateText, stripThinkTags } from '../utils/helpers'
+import {
+  ReadFileTool,
+  WriteFileTool,
+  EditFileTool,
+  ListDirTool,
+  GlobTool,
+  GrepTool,
+  ExecTool,
+} from './tools'
 
 // ---- 配置类型 ----
 
@@ -109,6 +118,7 @@ export class AgentLoop {
     this.memory = new MemoryStore(config.workspace, config.maxHistoryEntries ?? 1000)
     this.sessions = new SessionStore(config.workspace)
     this.tools = new ToolRegistry()
+    this._registerDefaultTools()
     this.runner = new AgentRunner(config.provider)
 
     this.context = new ContextBuilder({
@@ -116,6 +126,17 @@ export class AgentLoop {
       memory: this.memory,
       timezone: config.timezone,
     })
+  }
+
+  /** 注册默认工具集 */
+  private _registerDefaultTools(): void {
+    this.tools.register(new ReadFileTool(this.workspace))
+    this.tools.register(new WriteFileTool(this.workspace))
+    this.tools.register(new EditFileTool(this.workspace))
+    this.tools.register(new ListDirTool(this.workspace))
+    this.tools.register(new GlobTool())
+    this.tools.register(new GrepTool())
+    this.tools.register(new ExecTool({ workingDir: this.workspace }))
   }
 
   // ---- 公共 API ----
