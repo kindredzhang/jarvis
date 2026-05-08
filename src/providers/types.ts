@@ -1,5 +1,7 @@
 /**
  * Provider 层类型定义
+ *
+ * 1:1 port of nanobot/providers/base.py data classes.
  */
 
 /** LLM 工具调用请求 */
@@ -29,6 +31,24 @@ export interface LLMResponse {
   }
   /** 思考过程（DeepSeek-R1 等模型输出） */
   reasoningContent?: string | null
+  /** Anthropic extended thinking blocks */
+  thinkingBlocks?: Record<string, unknown>[]
+
+  // ---- 错误元数据（finishReason === 'error' 时有效） ----
+  /** Provider supplied retry wait in seconds */
+  retryAfter?: number | null
+  /** HTTP status code */
+  errorStatus?: number | null
+  /** Error kind e.g. 'timeout', 'connection' */
+  errorKind?: string | null
+  /** Provider/type semantic e.g. 'insufficient_quota' */
+  errorType?: string | null
+  /** Provider/code semantic e.g. 'rate_limit_exceeded' */
+  errorCode?: string | null
+  /** Structured retry-after from error */
+  errorRetryAfterS?: number | null
+  /** Explicit should-retry flag */
+  errorShouldRetry?: boolean | null
 }
 
 /** LLM 响应流中的单个数据块 */
@@ -36,6 +56,7 @@ export interface LLMResponseChunk {
   content: string | null
   finishReason: string | null
   toolCalls: ToolCallRequest[]
+  reasoningContent?: string | null
 }
 
 /** 消息 */

@@ -23,6 +23,7 @@ export interface OpenAICompatConfig {
   apiKey: string
   model?: string
   baseUrl?: string
+  extraHeaders?: Record<string, string>
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'
@@ -56,12 +57,14 @@ export class OpenAICompatProvider extends LLMProvider {
   readonly model: string
   protected apiKey: string
   protected baseUrl: string
+  protected extraHeaders: Record<string, string>
 
   constructor(config: OpenAICompatConfig) {
     super()
     this.apiKey = config.apiKey
     this.model = config.model ?? 'gpt-4o'
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+    this.extraHeaders = config.extraHeaders ?? {}
   }
 
   async generate(
@@ -131,6 +134,7 @@ export class OpenAICompatProvider extends LLMProvider {
               content: delta.content ?? null,
               finishReason,
               toolCalls: chunkToolCalls,
+              reasoningContent: delta.reasoning_content ?? null,
             }
 
             if (finishReason === 'tool_calls' && accumulatedToolCalls.size > 0) {
@@ -196,12 +200,14 @@ export class OpenAICompatProvider extends LLMProvider {
   }
 
   protected async rawPost(body: Record<string, unknown>): Promise<Response> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.apiKey}`,
+      ...this.extraHeaders,
+    }
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     })
 
@@ -233,6 +239,11 @@ export class OpenAICompatProvider extends LLMProvider {
             arguments: tc.function.arguments,
           },
         }))
+      }
+      // Preserve reasoning_content for DeepSeek thinking models
+      const reasoningContent = (msg as any).reasoning_content
+      if (reasoningContent != null) {
+        ;(formatted as any).reasoning_content = reasoningContent
       }
     }
 
