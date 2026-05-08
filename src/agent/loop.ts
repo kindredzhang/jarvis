@@ -52,6 +52,7 @@ import {
 } from './tools'
 import { CommandRouter } from '../command/router'
 import { registerBuiltinCommands } from '../command/builtin'
+import { Consolidator, Dream } from './consolidator'
 
 // ---- 配置类型 ----
 
@@ -100,6 +101,7 @@ export class AgentLoop {
   model: string
   maxIterations: number
   maxToolResultChars: number
+  contextWindowTokens: number
 
   readonly context: ContextBuilder
   readonly memory: MemoryStore
@@ -107,6 +109,8 @@ export class AgentLoop {
   readonly tools: ToolRegistry
   readonly runner: AgentRunner
   readonly commands: CommandRouter
+  readonly consolidator: Consolidator
+  readonly dream: Dream
 
   private _running = false
   private _lastUsage: Record<string, number> = {}
@@ -117,6 +121,7 @@ export class AgentLoop {
     this.model = config.model ?? config.provider.model
     this.maxIterations = config.maxIterations ?? 15
     this.maxToolResultChars = config.maxToolResultChars ?? 60_000
+    this.contextWindowTokens = config.contextWindowTokens ?? 128_000
 
     this.memory = new MemoryStore(config.workspace, config.maxHistoryEntries ?? 1000)
     this.sessions = new SessionStore(config.workspace)
@@ -133,6 +138,34 @@ export class AgentLoop {
       workspace: config.workspace,
       memory: this.memory,
       timezone: config.timezone,
+    })
+
+    this.consolidator = new Consolidator({
+      provider: config.provider,
+      model: this.model,
+      contextWindowTokens: this.contextWindowTokens,
+    })
+    this.dream = new Dream({
+      store: this.memory,
+      provider: config.provider,
+      model: this.model,
+    })
+
+    // 注册 /dream 命令
+    this.commands.exactCmd('/dream', async (ctx) => {
+      this.dream.run().then((didWork) => {
+        console.log(`[Dream] ${didWork ? 'completed' : 'nothing to process'}`)
+      }).catch((err) => {
+        console.error(`[Dream] failed: ${err}`)
+      })
+      return {
+        channel: ctx.channel,
+        chatId: ctx.chatId,
+        content: 'Dreaming...',
+        metadata: { ...ctx.metadata },
+        media: [],
+        buttons: [],
+      }
     })
   }
 
@@ -228,9 +261,15 @@ export class AgentLoop {
 
     // 1. 获取/创建会话历史
     const history = this.sessions.getHistory(sessionKey)
-    const historyForContext: Record<string, unknown>[] = history.map((m) => ({
-      ...m,
-    }))
+
+    // 1b. Consolidate 检查：如果历史消息超出 token 预算，先行归档
+    // history 会被 maybeConsolidate 原地修改
+    const didConsolidate = await this.consolidator.maybeConsolidate(history, () => {
+      this.sessions.save(sessionKey)
+    })
+
+    // 1c. 复制历史用于上下文构建（consolidate 可能已修改 history 数组）
+    const historyForContext: Record<string, unknown>[] = history.map((m) => ({ ...m }))
 
     // 2. 构建 LLM 消息列表
     const initialMessages = this.context.buildMessages({
