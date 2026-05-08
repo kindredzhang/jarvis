@@ -59,13 +59,14 @@ function renderMarkdown(text: string): string {
 // ──── agent 命令 ────
 async function cmdAgent(opts: any) {
   const config = loadConfig(opts.config)
-  if (!config.apiKey) { console.error(chalk.red('Error: DEEPSEEK_API_KEY required')); return }
+  if (!config.apiKey) { console.error(chalk.red('✗ Error: DEEPSEEK_API_KEY required')); return }
   const provider = makeProvider(config)
   const loop = new AgentLoop({ provider, workspace: getWorkspace(config), model: config.model, timezone: config.timezone })
 
-  if (typeof opts.message === 'string') {
+  const msg: string | undefined = opts.message
+  if (msg) {
     const spinner = ora({ text: 'thinking...', color: 'cyan' }).start()
-    const r = await loop.processDirect(opts.message)
+    const r = await loop.processDirect(msg!)
     spinner.stop()
     if (r?.content) console.log(renderMarkdown(r.content))
     return
@@ -101,11 +102,11 @@ async function cmdAgent(opts: any) {
 // ──── gateway 命令 ────
 async function cmdGateway(opts: any) {
   const config = loadConfig(opts.config)
-  if (!config.apiKey) { console.error(chalk.red('Error: DEEPSEEK_API_KEY required')); return }
+  if (!config.apiKey) { console.error(chalk.red('✗ Error: DEEPSEEK_API_KEY required')); return }
 
   const workspace = getWorkspace(config)
   const provider = makeProvider(config)
-  const port = opts.port ?? 3000
+  const port = parseInt(opts.port) || 18790
 
   console.log(chalk.bold(`\n${LOGO}`))
   console.log(chalk.dim(`  Starting gateway on port ${port}...\n`))
@@ -118,7 +119,7 @@ async function cmdGateway(opts: any) {
   const cron = new CronService(cronPath)
 
   // Heartbeat
-  const hb = new HeartbeatService({ workspace, provider, model: config.model })
+  const hb = new HeartbeatService({ workspace, provider, model: config.model ?? 'deepseek-chat' })
 
   // Health server
   const server = Bun.serve({
@@ -126,14 +127,13 @@ async function cmdGateway(opts: any) {
     fetch() { return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } }) },
   })
 
-  console.log(chalk.green('✓') + ' Gateway running')
-  console.log(chalk.dim(`  Health: http://localhost:${port}/health\n`))
+    console.log(chalk.dim(`  Health: http://localhost:${port}/health\n`))
 
   // Start services
   cron.start()
   hb.start()
-  console.log(chalk.green('✓') + ' Cron: started')
-  console.log(chalk.green('✓') + ' Heartbeat: started')
+  console.log(cron.listJobs().length > 0 ? chalk.green('✓') + ' Cron: ' + cron.listJobs().length + ' scheduled jobs' : '')
+  console.log(chalk.green('✓') + ' Heartbeat: every 1800s')
 
   // Keep alive
   process.on('SIGINT', () => { server.stop(); cron.stop(); hb.stop(); console.log(chalk.dim('\nShutting down...')); process.exit(0) })
@@ -143,11 +143,11 @@ async function cmdGateway(opts: any) {
 // ──── serve 命令 ────
 async function cmdServe(opts: any) {
   const config = loadConfig(opts.config)
-  if (!config.apiKey) { console.error(chalk.red('Error: DEEPSEEK_API_KEY required')); return }
+  if (!config.apiKey) { console.error(chalk.red('✗ Error: DEEPSEEK_API_KEY required')); return }
   const provider = makeProvider(config)
   const loop = new AgentLoop({ provider, workspace: getWorkspace(config), model: config.model })
   createAPIServer({ agentLoop: loop, port: opts.port ?? 3000 })
-  console.log(chalk.green(`✓ API server running on http://localhost:${opts.port ?? 3000}`))
+  console.log(chalk.green('✓') + ' API server running on http://localhost:' + (parseInt(opts.port) || 8000))
 }
 
 // ──── onboard 命令 ────
@@ -173,9 +173,9 @@ function cmdOnboard(opts: any) {
 async function cmdStatus(opts: any) {
   const config = loadConfig(opts.config)
   console.log(chalk.bold('\n  jarvis status\n'))
-  console.log(`  Model:    ${chalk.cyan(config.model ?? 'deepseek-chat')}`)
-  console.log(`  URL:      ${chalk.dim(config.baseUrl ?? 'https://api.deepseek.com/v1')}`)
-  console.log(`  WS:       ${chalk.dim(getWorkspace(config))}`)
+  console.log('  ' + chalk.cyan('Model') + '   ' + (config.model ?? 'deepseek-chat'))
+  console.log('  ' + chalk.dim('URL') + '     ' + (config.baseUrl ?? 'https://api.deepseek.com/v1'))
+  console.log('  ' + chalk.dim('WS') + '      ' + getWorkspace(config))
   console.log(`  API Key:  ${config.apiKey ? chalk.green('✓ configured') : chalk.red('✗ missing')}\n`)
 }
 
@@ -191,13 +191,13 @@ program.command('agent')
 
 program.command('gateway')
   .description('Start the gateway (agent + cron + heartbeat)')
-  .option('-p, --port <n>', 'Port (default 3000)', '3000')
+  .option('-p, --port <n>', 'Port (default 18790)', '18790')
   .option('-c, --config <path>', 'Config file')
   .action(cmdGateway)
 
 program.command('serve')
   .description('Start OpenAI-compatible API server')
-  .option('-p, --port <n>', 'Port (default 3000)', '3000')
+  .option('-p, --port <n>', 'Port (default 8000)', '8000')
   .option('-c, --config <path>', 'Config file')
   .action(cmdServe)
 
