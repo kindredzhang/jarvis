@@ -14,7 +14,7 @@
     "agent": "bin/jarvis agent",
     "test": "bun test",
     "typecheck": "tsc --noEmit --skipLibCheck",
-    "install": "./bin/jarvis install"
+    "postinstall": "echo 🐈 jarvis installed. Run: ./bin/jarvis agent"
   },
   "devDependencies": {
     "@types/bun": "latest"

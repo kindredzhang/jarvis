@@ -1,43 +1,36 @@
 #!/bin/bash
 # jarvis launcher — starts Bun API server + Python TUI
-# Usage: ./bin/jarvis [agent|gateway|serve|onboard|status] [options]
+# Usage: ./bin/jarvis [agent|gateway|serve|onboard|status|clean|test]
 
 set -e
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PID_FILE="$ROOT/.jarvis-server.pid"
-API_PORT="${JARVIS_PORT:-8000}"
+API_URL="${JARVIS_API_URL:-http://localhost:8000}"
 
-# Colors
-GREEN='\033[0;32m'
 DIM='\033[0;2m'
+GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# ──── Helpers ────
-
 is_server_running() {
-    curl -s "http://localhost:$API_PORT/health" > /dev/null 2>&1
+    bun --silent -e "const r=await fetch('${API_URL}/health');process.exit(r.ok?0:1)" 2>/dev/null
 }
 
 start_server() {
-    if is_server_running; then
-        echo -e "${DIM}Server already running on :$API_PORT${NC}"
-        return 0
-    fi
-    echo -e "${DIM}Starting jarvis server on :$API_PORT...${NC}"
+    if is_server_running; then return 0; fi
+    echo -e "${DIM}Starting API server on $API_URL...${NC}"
     cd "$ROOT"
-    bun run jarvis serve -p "$API_PORT" &
+    bun run src/cli.ts serve --port "${API_URL##*:}" &
     SERVER_PID=$!
     echo "$SERVER_PID" > "$PID_FILE"
 
-    # Wait for server to be ready
-    for i in {1..30}; do
+    for i in $(seq 1 30); do
+        sleep 0.3
         if is_server_running; then
             echo -e "${GREEN}✓${NC} Server ready"
             return 0
         fi
-        sleep 0.2
     done
     echo -e "${RED}✗ Server failed to start${NC}"
     return 1
@@ -56,35 +49,32 @@ stop_server() {
 
 # ──── Main ────
 
-case "${1:-agent}" in
+CMD="${1:-agent}"
+shift 2>/dev/null || true
+
+case "$CMD" in
     agent|gateway|onboard|status)
-        CMD="$1"
-        shift
         start_server
         trap 'stop_server' EXIT
         cd "$ROOT/tui"
         exec uv run jarvis "$CMD" "$@"
         ;;
     serve)
-        shift
         cd "$ROOT"
-        exec bun run jarvis serve "$@"
+        exec bun run src/cli.ts serve "$@"
         ;;
     test)
-        shift
         cd "$ROOT"
         exec bun test "$@"
         ;;
     install)
         echo -e "${GREEN}Installing jarvis...${NC}"
-        cd "$ROOT"
         echo -e "${DIM}  → bun dependencies${NC}"
-        bun install --silent
-        cd "$ROOT/tui"
+        cd "$ROOT" && bun install
         echo -e "${DIM}  → python dependencies${NC}"
-        uv sync --quiet
+        cd "$ROOT/tui" && uv sync --quiet
         echo -e "${GREEN}✓ jarvis installed${NC}"
-        echo -e "${DIM}  Usage: ./bin/jarvis agent${NC}"
+        echo -e "${DIM}  Run: ./bin/jarvis agent${NC}"
         ;;
     clean)
         rm -f "$ROOT/.jarvis-server.pid"
