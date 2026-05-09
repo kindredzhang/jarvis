@@ -627,7 +627,7 @@ export async function cmdChannelsLogin(
   channelName: string,
   opts: { force?: boolean; config?: string },
 ): Promise<void> {
-  loadRuntimeConfig(opts.config)
+  const config = loadRuntimeConfig(opts.config)
 
   try {
     const { discoverAll } = await import('../channels/registry')
@@ -644,7 +644,9 @@ export async function cmdChannelsLogin(
     console.log(`${chalk.cyan('jarvis')} ${cls.displayName ?? channelName} Login`)
     console.log()
 
-    const instance = new cls({}, null)
+    // Pass actual channel config from ~/.jarvis/config.json
+    const channelConfig = (config.channels as Record<string, unknown>)?.[channelName] || {}
+    const instance = new cls(channelConfig, null)
     if (typeof instance.login === 'function') {
       await instance.login({ force: opts.force ?? false })
     } else {
