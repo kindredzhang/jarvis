@@ -150,7 +150,6 @@ export class ChannelManager {
 
   private async sendOnce(channel: BaseChannel, msg: OutboundMessage): Promise<void> {
     if (msg.metadata?._streamDelta || msg.metadata?._streamEnd) {
-      // @ts-expect-error sendDelta may not exist on all channel implementations
       await channel.sendDelta?.(msg.chatId, msg.content, msg.metadata)
     } else if (!msg.metadata?._streamed) {
       await channel.send(msg)

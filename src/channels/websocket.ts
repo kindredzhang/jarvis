@@ -1063,7 +1063,7 @@ export class WebSocketChannel extends BaseChannel {
     }
   }
 
-  async sendDelta(chatId: string, delta: string, metadata?: Record<string, unknown>): Promise<void> {
+  override async sendDelta(chatId: string, delta: string, metadata?: Record<string, unknown>): Promise<void> {
     const conns = this._subs.get(chatId)
     if (!conns || conns.size === 0) return
 

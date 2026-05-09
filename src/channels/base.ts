@@ -51,6 +51,12 @@ export abstract class BaseChannel {
   /** 发送出站消息 */
   abstract send(msg: OutboundMessage): Promise<void>
 
+  /** 流式增量发送（可选，支持 CardKit 等流式输出） */
+  sendDelta?(chatId: string, delta: string, metadata?: Record<string, unknown>): Promise<void>
+
+  /** 通道登录（可选，如 Feishu 验证凭据、微信扫码） */
+  login?(opts?: { force?: boolean }): Promise<boolean>
+
   /** 权限检查 */
   isAllowed(senderId: string): boolean {
     const allow = this.config.allowFrom

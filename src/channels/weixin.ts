@@ -315,7 +315,8 @@ export class WeixinChannel extends BaseChannel {
     console.log(`\n[WeChat] Login URL: ${url}\n`)
   }
 
-  async login(force = false): Promise<boolean> {
+  override async login(opts?: { force?: boolean }): Promise<boolean> {
+    const force = opts?.force ?? false
     if (force) {
       this._token = ''
       this._getUpdatesBuf = ''

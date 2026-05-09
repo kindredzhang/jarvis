@@ -17,7 +17,7 @@ const _BUILTIN_CHANNELS: Record<string, () => Promise<new (...args: any[]) => Ba
   wecom: () => import('./wecom').then((m) => m.WeComChannel),
   email: () => import('./email').then((m) => m.EmailChannel),
   websocket: () => import('./websocket').then((m) => m.WebSocketChannel),
-  weixin: () => import('./weixin').then((m) => m.WeixinChannel),
+  weixin: () => import('./weixin').then((m) => m.WeixinChannel as any),
 }
 
 /**
