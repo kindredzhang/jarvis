@@ -280,11 +280,19 @@ export class AgentLoop {
     this.tools.register(new MyTool(this))
   }
 
-  /** 设置 MyTool 的通道上下文（由 hook 在工具执行前调用） */
+  /** 设置需要通道上下文的工具（由 processMessage 在 runner 启动前调用） */
   _set_tool_context(channel: string, chatId: string): void {
     const myTool = this.tools.get('my')
-    if (myTool instanceof MyTool) {
-      myTool.setContext(channel, chatId)
+    if (myTool && 'setContext' in myTool) {
+      ;(myTool as { setContext: (c: string, id: string) => void }).setContext(channel, chatId)
+    }
+    const cronTool = this.tools.get('cron')
+    if (cronTool && 'setContext' in cronTool) {
+      ;(cronTool as { setContext: (c: string, id: string) => void }).setContext(channel, chatId)
+    }
+    const msgTool = this.tools.get('message')
+    if (msgTool && 'setContext' in msgTool) {
+      ;(msgTool as { setContext: (c: string, id: string) => void }).setContext(channel, chatId)
     }
   }
 
@@ -363,6 +371,9 @@ export class AgentLoop {
       const cmdResult = await this.commands.dispatch(dispatchCtx)
       if (cmdResult) return cmdResult
     }
+
+    // Set tool context for tools that need channel/chatId (cron, message, my)
+    this._set_tool_context(msg.channel, msg.chatId)
 
     // 1. 获取/创建会话
     let session = this.sessions.getOrCreate(sessionKey)

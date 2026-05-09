@@ -38,3 +38,9 @@ tui/jarvis_tui.egg-info/
 tui/.venv/
 cli
 *.skill
+
+# workspace files (generated at runtime in user workspace)
+SOUL.md
+USER.md
+HEARTBEAT.md
+memory/

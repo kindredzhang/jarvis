@@ -53,6 +53,13 @@ export class ChannelManager {
 
       try {
         const channel = new cls(section, this.bus) as BaseChannel
+        // Connect inbound messages to the message bus
+        if ('onMessage' in channel) {
+          ;(channel as any).onMessage = async (msg: any) => {
+            this.bus.publishInbound(msg)
+            return null // response will come via outbound queue
+          }
+        }
         this.channels.set(name, channel)
       } catch (err) {
         console.warn(`[channels] ${name} not available: ${err}`)

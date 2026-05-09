@@ -34,7 +34,7 @@ const DEFAULT_CONFIG: Required<FeishuConfig> = {
   appSecret: '',
   encryptKey: '',
   verificationToken: '',
-  allowFrom: [],
+  allowFrom: ['*'],
   groupPolicy: 'mention',
   streaming: true,
   reactEmoji: 'THUMBSUP',
@@ -426,7 +426,7 @@ export class FeishuChannel extends BaseChannel {
   private replyToMessageFlag: boolean
 
   private _client: unknown = null
-  private _wsClient: unknown = null
+  private _wsClient: any = null
   private _processedMessageIds: Map<string, number> = new Map()
   private _streamBufs: Map<string, StreamBuf> = new Map()
   private _botOpenId: string | null = null
@@ -538,48 +538,34 @@ export class FeishuChannel extends BaseChannel {
       console.warn('[Feishu] Could not fetch bot open_id:', e)
     }
 
+    // Build event dispatcher with all event handlers
+    const eventDispatcher = new lark.EventDispatcher({
+      encryptKey: this.encryptKey || undefined,
+    }).register({
+      'im.message.receive_v1': (data: unknown) => {
+        this._onMessageSync(data)
+      },
+      'im.message.reaction.created_v1': () => {},
+      'im.message.reaction.deleted_v1': () => {},
+      'im.message.message_read_v1': () => {},
+      'im.chat.access_event.bot_p2p_chat_entered_v1': () => {},
+    })
+
     // Start WebSocket long connection
     this._wsClient = new lark.WSClient({
       appId: this.appId,
       appSecret: this.appSecret,
       domain,
-      logger: {
-        info: (...args: unknown[]) => console.log('[Feishu WS]', ...args),
-        warn: (...args: unknown[]) => console.warn('[Feishu WS]', ...args),
-        error: (...args: unknown[]) => console.error('[Feishu WS]', ...args),
-        debug: () => {},
-        trace: () => {},
-      } as any,
     })
 
-    // Register event handler
-    const wsClient = this._wsClient as any
-    wsClient.on('im.message.receive_v1', this._onMessageSync.bind(this))
-    // Register optional events — silently ignore if SDK doesn't support
-    this._registerOptionalEvent(wsClient, 'im.message.reaction.created_v1', () => {})
-    this._registerOptionalEvent(wsClient, 'im.message.reaction.deleted_v1', () => {})
-    this._registerOptionalEvent(wsClient, 'im.message.message_read_v1', () => {})
-    this._registerOptionalEvent(wsClient, 'im.chat.access_event.bot_p2p_chat_entered_v1', () => {})
-
-    wsClient.start()
+    ;(this._wsClient as any).start({ eventDispatcher })
     console.log('[Feishu] Bot started with WebSocket long connection (no public IP required)')
-  }
-
-  private _registerOptionalEvent(wsClient: any, eventName: string, handler: () => void): void {
-    try {
-      if (typeof wsClient.on === 'function') {
-        wsClient.on(eventName, handler)
-      }
-    } catch {
-      // event type not supported in this SDK version
-    }
   }
 
   async stop(): Promise<void> {
     this.running = false
     try {
-      const ws = this._wsClient as any
-      if (ws && typeof ws.stop === 'function') ws.stop()
+      if (this._wsClient && typeof this._wsClient.stop === 'function') this._wsClient.stop()
     } catch (e) {
       console.warn('[Feishu] Error stopping WS client:', e)
     }
@@ -597,8 +583,9 @@ export class FeishuChannel extends BaseChannel {
   private async _onMessage(data: unknown): Promise<void> {
     try {
       const d = data as Record<string, unknown>
-      const event = d.event as Record<string, unknown> | undefined
-      if (!event) return
+      // EventDispatcher unwraps the outer "event" envelope (decrypts if needed)
+      const event = (d.event as Record<string, unknown> | undefined) ?? d
+      if (!event || event === d && !event.message) return
 
       const message = event.message as Record<string, unknown> | undefined
       const sender = event.sender as Record<string, unknown> | undefined

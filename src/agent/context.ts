@@ -91,6 +91,15 @@ export class ContextBuilder {
       parts.push(options.identity)
     }
 
+    // 1.5. Workspace paths — tell the LLM where everything lives
+    parts.push(`## Workspace
+Your workspace is at: ${this.workspace}
+- Long-term memory: ${this.workspace}/memory/MEMORY.md (managed by Dream — do not edit directly)
+- History log: ${this.workspace}/memory/history.jsonl (append-only JSONL)
+- Custom skills: ${this.workspace}/skills/{skill-name}/SKILL.md
+- Bootstrap files: ${this.workspace}/SOUL.md, USER.md, AGENTS.md, TOOLS.md
+- Heartbeat tasks: ${this.workspace}/HEARTBEAT.md`)
+
     // 2. 引导文件（AGENTS.md, SOUL.md, USER.md, TOOLS.md）
     const bootstrap = this.loadBootstrapFiles()
     if (bootstrap) {
