@@ -1,7 +1,7 @@
 {
     "name": "@kindred/jarvis",
     "version": "1.0.0",
-    "description": "Personal AI Assistant — ReAct agent with tool use, multi-provider LLM, session persistence, and chat channel integrations",
+    "description": "Personal AI Assistant — ReAct agent with tool use, multi-provider LLM support, session persistence, memory consolidation, and chat channel integrations",
     "type": "module",
     "bin": {
         "jarvis": "bin/jarvis"
@@ -10,6 +10,7 @@
         "bin/",
         "src/",
         "templates/",
+        "skills/",
         "types/",
         "tsconfig.json",
         "README.md"
@@ -35,13 +36,14 @@
         "agent",
         "llm",
         "cli",
-        "assistant"
+        "assistant",
+        "react",
+        "mcp",
+        "bun"
     ],
     "license": "MIT",
     "devDependencies": {
-        "@types/bun": "latest"
-    },
-    "peerDependencies": {
+        "@types/bun": "latest",
         "typescript": "^5"
     },
     "dependencies": {

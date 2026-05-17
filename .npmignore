@@ -1,0 +1,12 @@
+# npmignore — files that should not be published to npm
+
+# Keep CLAUDE.md out of the package
+CLAUDE.md
+demo.png
+
+# Development files
+Makefile
+.claude/
+.git/
+node_modules/
+bun.lock

@@ -24,7 +24,7 @@ const program = new Command()
 program
   .name('jarvis')
   .description('jarvis - Personal AI Assistant')
-  .version('0.1.0')
+  .version('1.0.0')
 
 // ──── agent ────
 program
